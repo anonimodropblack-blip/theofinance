@@ -99,6 +99,48 @@ export interface SavingsContribution {
   created_at: string
 }
 
+// Due Bills & Reminders
+export type BillStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
+export type ReminderType = 'email' | 'sms' | 'push' | 'in_app'
+
+export interface DueBill {
+  id: string
+  couple_id: string
+  title: string
+  amount: number
+  due_date: string
+  status: BillStatus
+  category?: string
+  description?: string
+  reminder_days: number
+  reminder_sent: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+  paid_at?: string
+  daysUntilDue?: number
+  isOverdue?: boolean
+}
+
+export interface Reminder {
+  id: string
+  bill_id: string
+  reminder_type: ReminderType
+  sent_at: string
+  status: 'sent' | 'failed' | 'read'
+}
+
+export interface BillPayment {
+  id: string
+  bill_id: string
+  amount_paid: number
+  paid_date: string
+  payment_method?: string
+  notes?: string
+  created_by: string
+  created_at: string
+}
+
 // Session & Context
 export interface SessionData {
   user: User
