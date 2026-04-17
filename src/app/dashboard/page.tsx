@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
-import type { Couple, User, FixedAccount, SavingsGoal } from '@/types'
+import type { Couple, User, FixedAccount, SavingsGoal, DueBill } from '@/types'
 import ForecastCard from '@/components/ForecastCard'
 import UpcomingFixedAccountsWidget from '@/components/UpcomingFixedAccountsWidget'
 import SavingsGoalsWidget from '@/components/SavingsGoalsWidget'
+import UpcomingDueBillsWidget from '@/components/UpcomingDueBillsWidget'
 
 interface Favorite {
   id: string
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const [forecast, setForecast] = useState<Forecast | null>(null)
   const [fixedAccounts, setFixedAccounts] = useState<FixedAccount[]>([])
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([])
+  const [dueBills, setDueBills] = useState<DueBill[]>([])
   const [viewMode, setViewMode] = useState<'primary' | 'secondary'>('primary')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -120,12 +122,13 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [favRes, sumRes, foreRes, fixedRes, savingsRes] = await Promise.all([
+      const [favRes, sumRes, foreRes, fixedRes, savingsRes, billsRes] = await Promise.all([
         fetch('/api/favorites'),
         fetch('/api/dashboard/summary'),
         fetch('/api/dashboard/forecast'),
         fetch('/api/fixed-accounts'),
         fetch('/api/savings-goals'),
+        fetch('/api/due-bills'),
       ])
 
       const favData = await favRes.json()
@@ -133,6 +136,7 @@ export default function DashboardPage() {
       const foreData = await foreRes.json()
       const fixedData = await fixedRes.json()
       const savingsData = await savingsRes.json()
+      const billsData = await billsRes.json()
 
       if (favRes.ok) {
         setFavorites(favData.favorites || [])
@@ -152,6 +156,10 @@ export default function DashboardPage() {
 
       if (savingsRes.ok) {
         setSavingsGoals(savingsData.savingsGoals || [])
+      }
+
+      if (billsRes.ok) {
+        setDueBills(billsData.dueBills || [])
       }
     } catch (err) {
       console.error('Load dashboard data error:', err)
@@ -325,6 +333,9 @@ export default function DashboardPage() {
           {savingsGoals.length > 0 && (
             <SavingsGoalsWidget goals={savingsGoals} />
           )}
+          {dueBills.length > 0 && (
+            <UpcomingDueBillsWidget bills={dueBills} />
+          )}
         </div>
 
         {/* Favorite Accounts */}
@@ -391,6 +402,13 @@ export default function DashboardPage() {
             >
               <p className="text-2xl mb-2">📈</p>
               <p className="font-medium text-white">Relatórios</p>
+            </Link>
+            <Link
+              href="/dashboard/due-bills"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">⏰</p>
+              <p className="font-medium text-white">A Vencer</p>
             </Link>
             <Link
               href="/dashboard/fixed-accounts"
