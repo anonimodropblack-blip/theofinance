@@ -1,0 +1,99 @@
+═══════════════════════════════════════════════════════════════
+TheoFinance — Sessão Pausada em 2026-04-16
+═══════════════════════════════════════════════════════════════
+
+## Estado Atual
+
+**Fases Completas:** Phase 1 (Auth) + Phase 2 (Contas & Transações)
+**Próxima Fase:** Phase 3 (Dashboard Financeiro com Gráficos)
+
+## Último Commit
+```
+4848056 feat(02-04): categories API + settings + reports
+```
+
+## O Que Falta
+
+### Phase 3: Dashboard Financeiro (3-4 waves planejadas)
+- Wave 1: Schema para favoritos + cache de resumos
+- Wave 2: Gráficos (Chart.js) para receita/despesa
+- Wave 3: Cards de resumo por conta + alerts
+- Wave 4: Forecast mensal simples
+
+### Phases Futuras (4-7)
+- Phase 4: Contas Fixas & Caixinhas (goals)
+- Phase 5: Agenda Financeira (bills calendar)
+- Phase 6: Chat IA (insights)
+- Phase 7: Dívidas & Lixeira
+
+## Stack Confirmado
+
+Frontend: Next.js 16 + TypeScript + Tailwind
+Backend: Supabase + PostgreSQL + RLS
+Auth: Supabase Auth + SSR
+API: Next.js Route Handlers
+
+## Arquitetura Decisions (Locked)
+
+✓ couple_id como tenant root
+✓ RLS policies em todas as tabelas
+✓ Balance real-time (no denormalization)
+✓ Dark theme + rose accent
+✓ Categorias customizáveis
+
+## Antes de Retomar
+
+1. Verify migrations aplicadas
+   ```bash
+   supabase db push
+   ```
+
+2. Testar auth flow (signup → confirm → login → dashboard)
+
+3. Checar git status
+   ```bash
+   cd ~/projetos/theofinance
+   git log --oneline -5
+   ```
+
+## Próxima Sessão - Comece Por
+
+```bash
+cd ~/projetos/theofinance
+
+# Option 1: Continuar manualmente Wave 1 de Phase 3
+# - Criar schema para favoritos/resume cache
+# - API routes
+# - UI components
+
+# Option 2: Usar GSD para planejar Phase 3
+# /gsd:plan-phase 3
+
+# Option 3: Pedir para continuar
+# "continua"
+```
+
+## Checklist para Phase 3 - Dashboard Financeiro
+
+Wave 1: Cache & Favorites
+- [ ] Schema: account_favorites, summary_cache
+- [ ] RLS policies
+- [ ] API GET/POST para favorites
+
+Wave 2: Gráficos
+- [ ] Instalar chart library (recharts)
+- [ ] Componente BarChart (receita vs despesa)
+- [ ] Componente LineChart (trend over time)
+
+Wave 3: Resumo Cards
+- [ ] Card total contas
+- [ ] Card receita/despesa mês
+- [ ] Card alert (baixo saldo)
+
+Wave 4: Forecast
+- [ ] Calcular média gasto últimos 3 meses
+- [ ] Prever próximos 30 dias
+
+═══════════════════════════════════════════════════════════════
+Memória atualizada em: /home/leandro/.claude/projects/-home-leandro/memory/project_theofinance_checkpoint.md
+═══════════════════════════════════════════════════════════════
