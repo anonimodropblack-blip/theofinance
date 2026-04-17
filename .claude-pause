@@ -1,99 +1,88 @@
 ═══════════════════════════════════════════════════════════════
-TheoFinance — Sessão Pausada em 2026-04-16
+TheoFinance — Sessão 2 Pausada em 2026-04-17
 ═══════════════════════════════════════════════════════════════
 
 ## Estado Atual
 
-**Fases Completas:** Phase 1 (Auth) + Phase 2 (Contas & Transações)
-**Próxima Fase:** Phase 3 (Dashboard Financeiro com Gráficos)
+**Phases Completas:** Phase 1 (Auth) + Phase 2 (Contas) + Phase 3 (3/4 waves)
+**Último Commit:** 3337847 - feat(03-03): account card + alert card + insights
 
-## Último Commit
-```
-4848056 feat(02-04): categories API + settings + reports
-```
+## Phase 3 Progress
+
+✓ Wave 1: Favorites + Dashboard Summary API
+✓ Wave 2: Recharts + Gráficos (bar + line)
+✓ Wave 3: Account Card + Alert Card + Insights page
+⏳ Wave 4: Forecast (não iniciado)
 
 ## O Que Falta
 
-### Phase 3: Dashboard Financeiro (3-4 waves planejadas)
-- Wave 1: Schema para favoritos + cache de resumos
-- Wave 2: Gráficos (Chart.js) para receita/despesa
-- Wave 3: Cards de resumo por conta + alerts
-- Wave 4: Forecast mensal simples
+### Wave 4 (Phase 3): Forecast Simples
+- Calcular média gasto últimos 3 meses
+- Prever próximos 30 dias
+- Componente Forecast Card
+- Página ou widget no dashboard
 
-### Phases Futuras (4-7)
-- Phase 4: Contas Fixas & Caixinhas (goals)
-- Phase 5: Agenda Financeira (bills calendar)
-- Phase 6: Chat IA (insights)
+### Phases Futuras
+- Phase 4: Contas Fixas & Caixinhas
+- Phase 5: Agenda Financeira
+- Phase 6: Chat IA
 - Phase 7: Dívidas & Lixeira
 
-## Stack Confirmado
+## Arquivos Novos (Phase 3)
 
-Frontend: Next.js 16 + TypeScript + Tailwind
-Backend: Supabase + PostgreSQL + RLS
-Auth: Supabase Auth + SSR
-API: Next.js Route Handlers
+```
+src/components/Charts/ExpenseIncomeChart.tsx    (BarChart)
+src/components/Charts/BalanceTrendChart.tsx     (LineChart)
+src/components/AccountCard.tsx                  (com favorite btn)
+src/components/AlertCard.tsx                    (alert UI)
+src/app/dashboard/insights/page.tsx             (alerts + tips)
+src/app/api/favorites/route.ts                  (GET/POST/DELETE)
+src/app/api/dashboard/summary/route.ts          (summary calc)
+supabase/migrations/20240416000002_*.sql        (favorites + cache)
+```
 
-## Arquitetura Decisions (Locked)
-
-✓ couple_id como tenant root
-✓ RLS policies em todas as tabelas
-✓ Balance real-time (no denormalization)
-✓ Dark theme + rose accent
-✓ Categorias customizáveis
-
-## Antes de Retomar
-
-1. Verify migrations aplicadas
-   ```bash
-   supabase db push
-   ```
-
-2. Testar auth flow (signup → confirm → login → dashboard)
-
-3. Checar git status
-   ```bash
-   cd ~/projetos/theofinance
-   git log --oneline -5
-   ```
-
-## Próxima Sessão - Comece Por
+## Próxima Sessão
 
 ```bash
 cd ~/projetos/theofinance
 
-# Option 1: Continuar manualmente Wave 1 de Phase 3
-# - Criar schema para favoritos/resume cache
-# - API routes
-# - UI components
+# Option 1: Finish Wave 4 (forecast)
+# - Criar componente ForecastCard
+# - API para calcular forecast
+# - Integrar no dashboard
 
-# Option 2: Usar GSD para planejar Phase 3
-# /gsd:plan-phase 3
+# Option 2: Move to Phase 4
+# - Contas fixas (automatic transactions)
+# - Caixinhas (savings goals)
 
-# Option 3: Pedir para continuar
+# Ou continuar:
 # "continua"
 ```
 
-## Checklist para Phase 3 - Dashboard Financeiro
+## Git Log (Session 2)
 
-Wave 1: Cache & Favorites
-- [ ] Schema: account_favorites, summary_cache
-- [ ] RLS policies
-- [ ] API GET/POST para favorites
+```
+3337847 feat(03-03): account card + alert card + insights
+0b9ec04 feat(03-02): recharts + charts
+997cc80 feat(03-01): favorites + dashboard summary
+```
 
-Wave 2: Gráficos
-- [ ] Instalar chart library (recharts)
-- [ ] Componente BarChart (receita vs despesa)
-- [ ] Componente LineChart (trend over time)
+## Total de Commits (2 Sessions)
 
-Wave 3: Resumo Cards
-- [ ] Card total contas
-- [ ] Card receita/despesa mês
-- [ ] Card alert (baixo saldo)
+```
+Session 1: 9 commits (Phase 1 + Phase 2)
+Session 2: 3 commits (Phase 3 - 3 waves)
+Total: 12 commits
+```
 
-Wave 4: Forecast
-- [ ] Calcular média gasto últimos 3 meses
-- [ ] Prever próximos 30 dias
+## Stack Atualizado
+
+- React: useState, useEffect hooks
+- Recharts: BarChart, LineChart, ResponsiveContainer
+- Tailwind: Dark theme (slate-900, rose-600)
+- Supabase: RLS policies, multi-tenant
+- Components: Modular (AccountCard, AlertCard, Charts)
 
 ═══════════════════════════════════════════════════════════════
-Memória atualizada em: /home/leandro/.claude/projects/-home-leandro/memory/project_theofinance_checkpoint.md
+Salvo em 2026-04-17. Pronto para continuar!
 ═══════════════════════════════════════════════════════════════
