@@ -425,6 +425,13 @@ export default function DashboardPage() {
               <p className="font-medium text-white">Caixinhas</p>
             </Link>
             <Link
+              href="/dashboard/chat"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">🤖</p>
+              <p className="font-medium text-white">Chat IA</p>
+            </Link>
+            <Link
               href="/dashboard/settings"
               className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
             >
