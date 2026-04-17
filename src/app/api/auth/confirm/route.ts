@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     // Use SERVICE_ROLE_KEY for confirmation
     const supabase = createServerClient(

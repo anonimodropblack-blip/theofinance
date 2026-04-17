@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -35,7 +35,7 @@ export async function GET(
     const { data: contributions } = await supabase
       .from('savings_contributions')
       .select('*')
-      .eq('goal_id', params.id)
+      .eq('goal_id', (await params).id)
       .order('created_at', { ascending: false })
 
     return NextResponse.json({ contributions: contributions || [] }, { status: 200 })
@@ -47,10 +47,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -89,7 +89,7 @@ export async function POST(
     const { data: newContribution } = await supabase
       .from('savings_contributions')
       .insert({
-        goal_id: params.id,
+        goal_id: (await params).id,
         amount,
         description,
         created_by: userData.user.id,
@@ -101,7 +101,7 @@ export async function POST(
     const { data: goal } = await supabase
       .from('savings_goals')
       .select('current_amount, target_amount')
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .single()
 
     if (goal) {
@@ -109,7 +109,7 @@ export async function POST(
       await supabase
         .from('savings_goals')
         .update({ current_amount: newAmount })
-        .eq('id', params.id)
+        .eq('id', (await params).id)
     }
 
     return NextResponse.json({ contribution: newContribution }, { status: 201 })

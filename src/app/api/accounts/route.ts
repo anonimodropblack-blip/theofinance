@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
       .from('accounts')
       .select('*')
       .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',

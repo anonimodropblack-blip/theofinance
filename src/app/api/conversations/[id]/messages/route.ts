@@ -7,10 +7,10 @@ const client = new Anthropic()
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -40,7 +40,7 @@ export async function POST(
 
     // Store user message
     await supabase.from('conversation_messages').insert({
-      conversation_id: params.id,
+      conversation_id: (await params).id,
       role: 'user',
       content,
     })
@@ -49,7 +49,7 @@ export async function POST(
     const { data: messages } = await supabase
       .from('conversation_messages')
       .select('role, content')
-      .eq('conversation_id', params.id)
+      .eq('conversation_id', (await params).id)
       .order('created_at', { ascending: true })
 
     // Build prompt with context
@@ -73,7 +73,7 @@ export async function POST(
     const { data: storedMessage } = await supabase
       .from('conversation_messages')
       .insert({
-        conversation_id: params.id,
+        conversation_id: (await params).id,
         role: 'assistant',
         content: assistantMessage,
         tokens_used: response.usage.output_tokens,

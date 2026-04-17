@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -35,7 +35,7 @@ export async function GET(
     const { data: payments } = await supabase
       .from('bill_payments')
       .select('*')
-      .eq('bill_id', params.id)
+      .eq('bill_id', (await params).id)
       .order('paid_date', { ascending: false })
 
     return NextResponse.json({ payments: payments || [] }, { status: 200 })
@@ -47,10 +47,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -86,7 +86,7 @@ export async function POST(
     const { data: bill } = await supabase
       .from('due_bills')
       .select('amount, status')
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .single()
 
     if (!bill) {
@@ -97,7 +97,7 @@ export async function POST(
     const { data: payment } = await supabase
       .from('bill_payments')
       .insert({
-        bill_id: params.id,
+        bill_id: (await params).id,
         amount_paid,
         paid_date,
         payment_method,
@@ -111,7 +111,7 @@ export async function POST(
     const { data: payments } = await supabase
       .from('bill_payments')
       .select('amount_paid')
-      .eq('bill_id', params.id)
+      .eq('bill_id', (await params).id)
 
     const totalPaid = payments?.reduce((sum, p) => sum + p.amount_paid, 0) || 0
 
@@ -120,7 +120,7 @@ export async function POST(
       await supabase
         .from('due_bills')
         .update({ status: 'paid', paid_at: new Date().toISOString() })
-        .eq('id', params.id)
+        .eq('id', (await params).id)
     }
 
     return NextResponse.json({ payment }, { status: 201 })

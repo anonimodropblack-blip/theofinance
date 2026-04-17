@@ -5,7 +5,7 @@ import type { FixedAccount } from '@/types'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       .from('fixed_accounts')
       .select('*')
       .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     return NextResponse.json({ fixedAccounts: fixedAccounts || [] }, { status: 200 })
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',

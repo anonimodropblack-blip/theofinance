@@ -126,7 +126,7 @@ export default function FixedAccountsPage() {
     setFormData({
       name: account.name,
       amount: account.amount.toString(),
-      frequency: account.frequency,
+      frequency: account.frequency as 'monthly',
       due_date: account.due_date?.toString() || '',
       category: account.category || '',
       description: account.description || '',

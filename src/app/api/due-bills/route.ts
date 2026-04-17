@@ -5,7 +5,7 @@ import type { DueBill } from '@/types'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       .from('due_bills')
       .select('*')
       .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
       .order('due_date', { ascending: true })
 
     // Calculate days until due and isOverdue
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',

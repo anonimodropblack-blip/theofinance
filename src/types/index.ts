@@ -190,3 +190,39 @@ export interface AppContext {
   loading: boolean
   error?: string
 }
+
+// Debts
+export type DebtStatus = 'active' | 'paid' | 'negotiated'
+
+export interface Debt {
+  id: string
+  couple_id: string
+  name: string
+  creditor: string
+  total_amount: number
+  remaining_amount: number
+  installments_total: number
+  installments_paid: number
+  installment_value?: number
+  due_day?: number
+  status: DebtStatus
+  notes?: string
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+// Audit Log
+export type AuditAction = 'create' | 'update' | 'delete' | 'restore'
+
+export interface AuditLogEntry {
+  id: string
+  couple_id: string
+  user_id: string
+  action: AuditAction
+  entity_type: string
+  entity_id: string
+  entity_name?: string
+  metadata?: Record<string, unknown>
+  created_at: string
+}

@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
@@ -152,7 +152,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',

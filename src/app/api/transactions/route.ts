@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const searchParams = request.nextUrl.searchParams
     const accountId = searchParams.get('accountId')
     const fromDate = searchParams.get('fromDate')
@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       .from('transactions')
       .select('*')
       .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
 
     if (accountId) {
       query = query.eq('account_id', accountId)
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',

@@ -44,13 +44,14 @@ export default function DueBillCard({
     })
   }
 
-  const daysText = bill.daysUntilDue === 0
+  const daysUntilDue = bill.daysUntilDue ?? 0
+  const daysText = daysUntilDue === 0
     ? 'Vence hoje'
-    : bill.daysUntilDue === 1
+    : daysUntilDue === 1
     ? 'Vence amanhã'
-    : bill.daysUntilDue > 0
-    ? `Vence em ${bill.daysUntilDue} dias`
-    : `Venceu há ${Math.abs(bill.daysUntilDue)} dias`
+    : daysUntilDue > 0
+    ? `Vence em ${daysUntilDue} dias`
+    : `Venceu há ${Math.abs(daysUntilDue)} dias`
 
   return (
     <div className={`p-4 border rounded-lg ${statusStyles[bill.status]}`}>

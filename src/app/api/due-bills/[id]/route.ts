@@ -4,10 +4,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -58,7 +58,7 @@ export async function PATCH(
         updated_at: new Date().toISOString(),
         paid_at: status === 'paid' ? new Date().toISOString() : null,
       })
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .eq('couple_id', coupleData.id)
       .select()
       .single()
@@ -87,10 +87,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
       process.env.SUPABASE_ANON_KEY || '',
@@ -127,8 +127,8 @@ export async function DELETE(
 
     await supabase
       .from('due_bills')
-      .delete()
-      .eq('id', params.id)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', (await params).id)
       .eq('couple_id', coupleData.id)
 
     return NextResponse.json({ success: true }, { status: 200 })

@@ -1,11 +1,12 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
 type Step = 'loading' | 'create-account' | 'success' | 'error'
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const token = searchParams.get('token') || ''
@@ -21,7 +22,6 @@ export default function AcceptInvitePage() {
 
   useEffect(() => {
     if (token && email) {
-      // Move to create account step
       setStep('create-account')
     } else {
       setError('Invalid invite link')
@@ -35,14 +35,13 @@ export default function AcceptInvitePage() {
     setLoading(true)
 
     try {
-      // First, create auth user
       const signupResponse = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email,
           password: formData.password,
-          partnerEmail: null, // They're being invited, not inviting
+          partnerEmail: null,
         }),
       })
 
@@ -52,7 +51,6 @@ export default function AcceptInvitePage() {
         throw new Error(signupData.error || 'Signup failed')
       }
 
-      // Then accept the invite
       const acceptResponse = await fetch('/api/invites/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,5 +167,17 @@ export default function AcceptInvitePage() {
         This invite link is invalid or has expired
       </p>
     </div>
+  )
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4 text-center">
+        <p className="text-slate-400">Loading...</p>
+      </div>
+    }>
+      <AcceptInviteContent />
+    </Suspense>
   )
 }

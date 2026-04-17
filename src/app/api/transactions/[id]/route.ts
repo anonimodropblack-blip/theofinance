@@ -4,13 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json()
     const { amount, type, categoryId, description, date } = body
 
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
@@ -44,7 +44,7 @@ export async function PATCH(
     const { data: transaction, error } = await supabase
       .from('transactions')
       .update(updates)
-      .eq('id', params.id)
+      .eq('id', (await params).id)
       .select()
       .single()
 
@@ -67,10 +67,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.SUPABASE_URL || '',
@@ -93,8 +93,8 @@ export async function DELETE(
 
     const { error } = await supabase
       .from('transactions')
-      .delete()
-      .eq('id', params.id)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', (await params).id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 404 })

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
 
     // Get auth user
     const anon = createServerClient(

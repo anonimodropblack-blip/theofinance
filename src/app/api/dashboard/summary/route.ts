@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const searchParams = request.nextUrl.searchParams
     const period = searchParams.get('period') || 'current_month'
 
