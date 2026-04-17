@@ -3,12 +3,38 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import Link from 'next/link'
 import type { Couple, User } from '@/types'
+
+interface Favorite {
+  id: string
+  account_id: string
+  accounts: {
+    id: string
+    name: string
+    type: string
+    balance: number
+    color: string
+    currency: string
+  }
+}
+
+interface Summary {
+  period: string
+  totalIncome: number
+  totalExpense: number
+  net: number
+  transactionCount: number
+  accountsCount: number
+  totalAccountsBalance: number
+}
 
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [couple, setCouple] = useState<Couple | null>(null)
+  const [favorites, setFavorites] = useState<Favorite[]>([])
+  const [summary, setSummary] = useState<Summary | null>(null)
   const [viewMode, setViewMode] = useState<'primary' | 'secondary'>('primary')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -67,6 +93,35 @@ export default function DashboardPage() {
 
     loadSession()
   }, [router])
+
+  // Load favorites and summary
+  useEffect(() => {
+    if (!loading) {
+      loadDashboardData()
+    }
+  }, [loading])
+
+  const loadDashboardData = async () => {
+    try {
+      const [favRes, sumRes] = await Promise.all([
+        fetch('/api/favorites'),
+        fetch('/api/dashboard/summary'),
+      ])
+
+      const favData = await favRes.json()
+      const sumData = await sumRes.json()
+
+      if (favRes.ok) {
+        setFavorites(favData.favorites || [])
+      }
+
+      if (sumRes.ok) {
+        setSummary(sumData.summary)
+      }
+    } catch (err) {
+      console.error('Load dashboard data error:', err)
+    }
+  }
 
   const handleLogout = async () => {
     const supabase = createBrowserClient(
@@ -154,34 +209,142 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Welcome Card */}
-          <div className="md:col-span-3 p-6 bg-slate-800 border border-slate-700 rounded-lg">
-            <h2 className="text-xl font-semibold text-white mb-2">
-              Welcome back!
-            </h2>
-            <p className="text-slate-400">
-              You're viewing as <span className="text-rose-500 font-medium">
-                {viewMode === 'primary' ? couple.primary_user_email : couple.secondary_user_email || 'Partner'}
-              </span>
-            </p>
-          </div>
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+        {/* Welcome Card */}
+        <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            Bem-vindo de volta!
+          </h2>
+          <p className="text-slate-400">
+            Visualizando como <span className="text-rose-500 font-medium">
+              {viewMode === 'primary' ? couple?.primary_user_email : couple?.secondary_user_email || 'Partner'}
+            </span>
+          </p>
+        </div>
 
-          {/* Placeholder Cards */}
-          <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-4">Accounts</h3>
-            <p className="text-slate-400 text-sm">Coming soon...</p>
-          </div>
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-6 bg-green-900/20 border border-green-500/30 rounded-lg">
+              <p className="text-slate-400 text-sm font-medium mb-2">RECEITA</p>
+              <p className="text-2xl font-bold text-green-400">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(summary.totalIncome)}
+              </p>
+            </div>
 
-          <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-4">Recent Transactions</h3>
-            <p className="text-slate-400 text-sm">Coming soon...</p>
-          </div>
+            <div className="p-6 bg-red-900/20 border border-red-500/30 rounded-lg">
+              <p className="text-slate-400 text-sm font-medium mb-2">DESPESA</p>
+              <p className="text-2xl font-bold text-red-400">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(summary.totalExpense)}
+              </p>
+            </div>
 
-          <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-            <h3 className="text-lg font-semibold text-white mb-4">Analytics</h3>
-            <p className="text-slate-400 text-sm">Coming soon...</p>
+            <div className={`p-6 rounded-lg border ${
+              summary.net >= 0
+                ? 'bg-blue-900/20 border-blue-500/30'
+                : 'bg-orange-900/20 border-orange-500/30'
+            }`}>
+              <p className="text-slate-400 text-sm font-medium mb-2">SALDO</p>
+              <p className={`text-2xl font-bold ${
+                summary.net >= 0 ? 'text-blue-400' : 'text-orange-400'
+              }`}>
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(summary.net)}
+              </p>
+            </div>
+
+            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
+              <p className="text-slate-400 text-sm font-medium mb-2">TOTAL CONTAS</p>
+              <p className="text-2xl font-bold text-white">
+                {new Intl.NumberFormat('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                }).format(summary.totalAccountsBalance)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Favorite Accounts */}
+        {favorites && favorites.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Contas Favoritas</h3>
+              <Link href="/dashboard/accounts" className="text-rose-500 hover:text-rose-400 text-sm">
+                Ver todas →
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {favorites.map((fav) => (
+                <Link
+                  key={fav.id}
+                  href={`/dashboard/accounts/${fav.accounts.id}`}
+                  className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-rose-600 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-semibold text-white">{fav.accounts.name}</h4>
+                      <p className="text-xs text-slate-400">{fav.accounts.type}</p>
+                    </div>
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: fav.accounts.color }}
+                    ></div>
+                  </div>
+                  <div className="pt-3 border-t border-slate-700">
+                    <p className="text-2xl font-bold text-white">
+                      {new Intl.NumberFormat('pt-BR', {
+                        style: 'currency',
+                        currency: fav.accounts.currency || 'BRL',
+                      }).format(fav.accounts.balance || 0)}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Ações Rápidas</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link
+              href="/dashboard/accounts"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">🏦</p>
+              <p className="font-medium text-white">Contas</p>
+            </Link>
+            <Link
+              href="/dashboard/transactions"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">💰</p>
+              <p className="font-medium text-white">Transações</p>
+            </Link>
+            <Link
+              href="/dashboard/reports"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">📈</p>
+              <p className="font-medium text-white">Relatórios</p>
+            </Link>
+            <Link
+              href="/dashboard/settings"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">⚙️</p>
+              <p className="font-medium text-white">Configurações</p>
+            </Link>
           </div>
         </div>
       </main>
