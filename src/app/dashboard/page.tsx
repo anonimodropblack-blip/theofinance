@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
 import type { Couple, User } from '@/types'
+import ForecastCard from '@/components/ForecastCard'
 
 interface Favorite {
   id: string
@@ -29,12 +30,24 @@ interface Summary {
   totalAccountsBalance: number
 }
 
+interface Forecast {
+  averageMonthlyExpense: number
+  averageDailyExpense: number
+  totalForecast30Days: number
+  basedOnMonths: number
+  dailyForecast: Array<{
+    date: string
+    expectedExpense: number
+  }>
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [couple, setCouple] = useState<Couple | null>(null)
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [forecast, setForecast] = useState<Forecast | null>(null)
   const [viewMode, setViewMode] = useState<'primary' | 'secondary'>('primary')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -103,13 +116,15 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [favRes, sumRes] = await Promise.all([
+      const [favRes, sumRes, foreRes] = await Promise.all([
         fetch('/api/favorites'),
         fetch('/api/dashboard/summary'),
+        fetch('/api/dashboard/forecast'),
       ])
 
       const favData = await favRes.json()
       const sumData = await sumRes.json()
+      const foreData = await foreRes.json()
 
       if (favRes.ok) {
         setFavorites(favData.favorites || [])
@@ -117,6 +132,10 @@ export default function DashboardPage() {
 
       if (sumRes.ok) {
         setSummary(sumData.summary)
+      }
+
+      if (foreRes.ok) {
+        setForecast(foreData.forecast)
       }
     } catch (err) {
       console.error('Load dashboard data error:', err)
@@ -271,6 +290,15 @@ export default function DashboardPage() {
               </p>
             </div>
           </div>
+        )}
+
+        {/* Forecast Card */}
+        {forecast && (
+          <ForecastCard
+            averageMonthlyExpense={forecast.averageMonthlyExpense}
+            averageDailyExpense={forecast.averageDailyExpense}
+            totalForecast30Days={forecast.totalForecast30Days}
+          />
         )}
 
         {/* Favorite Accounts */}
