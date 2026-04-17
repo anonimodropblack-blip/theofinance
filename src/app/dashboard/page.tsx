@@ -344,7 +344,7 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <div>
           <h3 className="text-lg font-semibold text-white mb-4">Ações Rápidas</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <Link
               href="/dashboard/accounts"
               className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
@@ -365,6 +365,20 @@ export default function DashboardPage() {
             >
               <p className="text-2xl mb-2">📈</p>
               <p className="font-medium text-white">Relatórios</p>
+            </Link>
+            <Link
+              href="/dashboard/fixed-accounts"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">📋</p>
+              <p className="font-medium text-white">Contas Fixas</p>
+            </Link>
+            <Link
+              href="/dashboard/savings-goals"
+              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+            >
+              <p className="text-2xl mb-2">🎯</p>
+              <p className="font-medium text-white">Caixinhas</p>
             </Link>
             <Link
               href="/dashboard/settings"
