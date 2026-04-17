@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import AccountCard from '@/components/AccountCard'
 import type { Account } from '@/types'
 
 export default function AccountsPage() {
@@ -117,33 +118,18 @@ export default function AccountsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {accounts.map((account) => (
-            <div
+            <AccountCard
               key={account.id}
-              onClick={() => router.push(`/dashboard/accounts/${account.id}`)}
-              className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-rose-600 cursor-pointer transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-white">{account.name}</h3>
-                  <p className="text-xs text-slate-400">
-                    {typeLabels[account.type]}
-                  </p>
-                </div>
-                <div
-                  className={`w-3 h-3 rounded-full ${account.color || 'bg-blue-600'}`}
-                  style={{ backgroundColor: account.color }}
-                ></div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-700">
-                <p className="text-2xl font-bold text-white">
-                  {new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: account.currency || 'BRL',
-                  }).format(account.balance || 0)}
-                </p>
-              </div>
-            </div>
+              id={account.id}
+              name={account.name}
+              type={account.type}
+              balance={account.balance || 0}
+              color={account.color}
+              currency={account.currency || 'BRL'}
+              onFavoriteToggle={() => {
+                // Refresh favorites on toggle
+              }}
+            />
           ))}
         </div>
       )}
