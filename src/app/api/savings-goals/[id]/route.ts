@@ -1,0 +1,129 @@
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL || '',
+      process.env.SUPABASE_ANON_KEY || '',
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {}
+          },
+        },
+      }
+    )
+
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: coupleData } = await supabase
+      .from('couples')
+      .select('id')
+      .or(`primary_user_id.eq.${userData.user.id},secondary_user_id.eq.${userData.user.id}`)
+      .single()
+
+    if (!coupleData) {
+      return NextResponse.json({ error: 'Couple not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+    const { name, target_amount, current_amount, icon, color, deadline, is_active } = body
+
+    const { data: updatedGoal } = await supabase
+      .from('savings_goals')
+      .update({
+        name,
+        target_amount,
+        current_amount,
+        icon,
+        color,
+        deadline,
+        is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.id)
+      .eq('couple_id', coupleData.id)
+      .select()
+      .single()
+
+    if (!updatedGoal) {
+      return NextResponse.json({ error: 'Savings goal not found' }, { status: 404 })
+    }
+
+    const progress = (updatedGoal.current_amount / updatedGoal.target_amount) * 100
+
+    return NextResponse.json({ savingsGoal: { ...updatedGoal, progress } }, { status: 200 })
+  } catch (error) {
+    console.error('Update savings goal error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL || '',
+      process.env.SUPABASE_ANON_KEY || '',
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {}
+          },
+        },
+      }
+    )
+
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: coupleData } = await supabase
+      .from('couples')
+      .select('id')
+      .or(`primary_user_id.eq.${userData.user.id},secondary_user_id.eq.${userData.user.id}`)
+      .single()
+
+    if (!coupleData) {
+      return NextResponse.json({ error: 'Couple not found' }, { status: 404 })
+    }
+
+    await supabase
+      .from('savings_goals')
+      .delete()
+      .eq('id', params.id)
+      .eq('couple_id', coupleData.id)
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error) {
+    console.error('Delete savings goal error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}

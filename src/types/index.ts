@@ -56,6 +56,49 @@ export interface Transaction {
   updated_at: string
 }
 
+// Fixed Accounts & Savings Goals
+export type FrequencyType = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'yearly'
+
+export interface FixedAccount {
+  id: string
+  couple_id: string
+  name: string
+  amount: number
+  frequency: FrequencyType
+  due_date?: number
+  category?: string
+  description?: string
+  is_active: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface SavingsGoal {
+  id: string
+  couple_id: string
+  name: string
+  target_amount: number
+  current_amount: number
+  icon: string
+  color: string
+  deadline?: string
+  is_active: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+  progress?: number
+}
+
+export interface SavingsContribution {
+  id: string
+  goal_id: string
+  amount: number
+  description?: string
+  created_by: string
+  created_at: string
+}
+
 // Session & Context
 export interface SessionData {
   user: User
