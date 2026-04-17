@@ -141,6 +141,43 @@ export interface BillPayment {
   created_at: string
 }
 
+// Chat & Conversations
+export type ConversationTopic = 'spending_analysis' | 'savings_tips' | 'budget_planning' | 'investment_advice' | 'general'
+export type InsightType = 'spending_pattern' | 'savings_opportunity' | 'budget_recommendation' | 'alert'
+
+export interface Conversation {
+  id: string
+  couple_id: string
+  title: string
+  topic?: ConversationTopic
+  created_by: string
+  created_at: string
+  updated_at: string
+  archived: boolean
+  messageCount?: number
+}
+
+export interface ConversationMessage {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant'
+  content: string
+  tokens_used?: number
+  created_at: string
+}
+
+export interface ConversationInsight {
+  id: string
+  couple_id: string
+  insight_type: InsightType
+  title: string
+  description: string
+  priority: 'low' | 'medium' | 'high' | 'critical'
+  data?: Record<string, any>
+  created_at: string
+  expires_at?: string
+}
+
 // Session & Context
 export interface SessionData {
   user: User
