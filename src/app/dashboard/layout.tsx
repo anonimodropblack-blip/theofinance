@@ -56,6 +56,8 @@ export default function DashboardLayout({
     { name: 'Visão Geral', href: '/dashboard', icon: '📊' },
     { name: 'Contas', href: '/dashboard/accounts', icon: '🏦' },
     { name: 'Transações', href: '/dashboard/transactions', icon: '💰' },
+    { name: 'Relatórios', href: '/dashboard/reports', icon: '📈' },
+    { name: 'Configurações', href: '/dashboard/settings', icon: '⚙️' },
   ]
 
   return (
