@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import ExpenseIncomeChart from '@/components/Charts/ExpenseIncomeChart'
+import BalanceTrendChart from '@/components/Charts/BalanceTrendChart'
 
 interface Transaction {
   id: string
@@ -25,6 +27,8 @@ export default function ReportsPage() {
   const [error, setError] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [chartData, setChartData] = useState<any[]>([])
+  const [trendData, setTrendData] = useState<any[]>([])
 
   useEffect(() => {
     // Set default date range (current month)
@@ -60,11 +64,42 @@ export default function ReportsPage() {
       let totalIncome = 0
       let totalExpense = 0
 
+      // Group by date for trend
+      const dailyData: Record<string, { income: number; expense: number }> = {}
+      let runningBalance = 0
+
       transactions.forEach((t) => {
         if (t.type === 'income') {
           totalIncome += t.amount
         } else if (t.type === 'expense') {
           totalExpense += t.amount
+        }
+
+        // Populate daily data
+        const dateStr = new Date(t.date).toLocaleDateString('pt-BR')
+        if (!dailyData[dateStr]) {
+          dailyData[dateStr] = { income: 0, expense: 0 }
+        }
+        if (t.type === 'income') {
+          dailyData[dateStr].income += t.amount
+        } else if (t.type === 'expense') {
+          dailyData[dateStr].expense += t.amount
+        }
+      })
+
+      // Prepare chart data
+      const chartDataPoints = Object.entries(dailyData).map(([date, data]) => ({
+        name: date,
+        income: data.income,
+        expense: data.expense,
+      }))
+
+      // Prepare trend data (cumulative balance)
+      const trendDataPoints = chartDataPoints.map((point) => {
+        runningBalance += point.income - point.expense
+        return {
+          date: point.name,
+          balance: runningBalance,
         }
       })
 
@@ -76,6 +111,8 @@ export default function ReportsPage() {
         byCategory: {},
       })
 
+      setChartData(chartDataPoints)
+      setTrendData(trendDataPoints)
       setError('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -176,6 +213,27 @@ export default function ReportsPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Charts */}
+      {chartData.length > 0 && (
+        <>
+          <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
+            <h3 className="text-lg font-semibold text-white mb-4">
+              Receita vs Despesa
+            </h3>
+            <ExpenseIncomeChart data={chartData} height={400} />
+          </div>
+
+          {trendData.length > 0 && (
+            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Tendência de Saldo
+              </h3>
+              <BalanceTrendChart data={trendData} height={400} />
+            </div>
+          )}
+        </>
+      )}
 
       {/* Summary Text */}
       {report && (
