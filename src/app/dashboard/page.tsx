@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
-import type { Couple, User } from '@/types'
+import type { Couple, User, FixedAccount, SavingsGoal } from '@/types'
 import ForecastCard from '@/components/ForecastCard'
+import UpcomingFixedAccountsWidget from '@/components/UpcomingFixedAccountsWidget'
+import SavingsGoalsWidget from '@/components/SavingsGoalsWidget'
 
 interface Favorite {
   id: string
@@ -48,6 +50,8 @@ export default function DashboardPage() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [forecast, setForecast] = useState<Forecast | null>(null)
+  const [fixedAccounts, setFixedAccounts] = useState<FixedAccount[]>([])
+  const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([])
   const [viewMode, setViewMode] = useState<'primary' | 'secondary'>('primary')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -116,15 +120,19 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      const [favRes, sumRes, foreRes] = await Promise.all([
+      const [favRes, sumRes, foreRes, fixedRes, savingsRes] = await Promise.all([
         fetch('/api/favorites'),
         fetch('/api/dashboard/summary'),
         fetch('/api/dashboard/forecast'),
+        fetch('/api/fixed-accounts'),
+        fetch('/api/savings-goals'),
       ])
 
       const favData = await favRes.json()
       const sumData = await sumRes.json()
       const foreData = await foreRes.json()
+      const fixedData = await fixedRes.json()
+      const savingsData = await savingsRes.json()
 
       if (favRes.ok) {
         setFavorites(favData.favorites || [])
@@ -136,6 +144,14 @@ export default function DashboardPage() {
 
       if (foreRes.ok) {
         setForecast(foreData.forecast)
+      }
+
+      if (fixedRes.ok) {
+        setFixedAccounts(fixedData.fixedAccounts || [])
+      }
+
+      if (savingsRes.ok) {
+        setSavingsGoals(savingsData.savingsGoals || [])
       }
     } catch (err) {
       console.error('Load dashboard data error:', err)
@@ -300,6 +316,16 @@ export default function DashboardPage() {
             totalForecast30Days={forecast.totalForecast30Days}
           />
         )}
+
+        {/* Widgets Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {fixedAccounts.length > 0 && (
+            <UpcomingFixedAccountsWidget accounts={fixedAccounts} />
+          )}
+          {savingsGoals.length > 0 && (
+            <SavingsGoalsWidget goals={savingsGoals} />
+          )}
+        </div>
 
         {/* Favorite Accounts */}
         {favorites && favorites.length > 0 && (
