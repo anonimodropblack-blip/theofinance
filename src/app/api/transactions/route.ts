@@ -85,7 +85,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { accountId, amount, type, categoryId, description, date } = body
+    const {
+      accountId,
+      amount,
+      type,
+      categoryId,
+      description,
+      date,
+      subcategory,
+      paidByUserId,
+      toAccountId,
+      recurringRule,
+      recurringUntil,
+      category,
+    } = body
 
     if (!accountId || !amount || !type) {
       return NextResponse.json(
@@ -93,6 +106,31 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    if (type === 'transfer' && !toAccountId) {
+      return NextResponse.json(
+        { error: 'toAccountId é obrigatório para transferências' },
+        { status: 400 }
+      )
+    }
+
+    if (toAccountId && toAccountId === accountId) {
+      return NextResponse.json(
+        { error: 'Conta de origem e destino devem ser diferentes' },
+        { status: 400 }
+      )
+    }
+
+    const validRules = new Set([
+      'weekly',
+      'biweekly',
+      'monthly',
+      'bimonthly',
+      'quarterly',
+      'yearly',
+    ])
+    const normalizedRule =
+      recurringRule && validRules.has(recurringRule) ? recurringRule : null
 
     const cookieStore = await cookies()
 
@@ -138,11 +176,17 @@ export async function POST(request: NextRequest) {
       .insert({
         couple_id: coupleData.id,
         account_id: accountId,
+        to_account_id: toAccountId || null,
         amount,
         type,
+        category: category || null,
+        subcategory: subcategory || null,
         category_id: categoryId || null,
         description: description || null,
         date: date || new Date().toISOString().split('T')[0],
+        paid_by_user_id: paidByUserId || userData.user.id,
+        recurring_rule: normalizedRule,
+        recurring_until: recurringUntil || null,
         created_by: userData.user.id,
       })
       .select()

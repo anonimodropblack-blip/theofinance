@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, type, color } = body
+    const { name, type, color, is_private } = body
 
     if (!name || !type) {
       return NextResponse.json(
@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
         name,
         type,
         color: color || '#3b82f6',
+        is_private: !!is_private,
         created_by: userData.user.id,
       })
       .select()

@@ -16,6 +16,7 @@ export default function AccountsPage() {
     name: '',
     type: 'checking' as 'checking' | 'savings' | 'credit' | 'cash',
     color: '#3b82f6',
+    is_private: false,
   })
 
   useEffect(() => {
@@ -57,7 +58,7 @@ export default function AccountsPage() {
       }
 
       setAccounts([data.account, ...accounts])
-      setFormData({ name: '', type: 'checking', color: '#3b82f6' })
+      setFormData({ name: '', type: 'checking', color: '#3b82f6', is_private: false })
       setShowModal(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -202,6 +203,23 @@ export default function AccountsPage() {
                   )}
                 </div>
               </div>
+
+              <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-700/30 border border-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_private}
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_private: e.target.checked })
+                  }
+                  className="mt-0.5"
+                />
+                <div>
+                  <p className="text-sm font-medium text-white">Conta privada</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Não aparece na visão compartilhada do casal.
+                  </p>
+                </div>
+              </label>
 
               {error && (
                 <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">

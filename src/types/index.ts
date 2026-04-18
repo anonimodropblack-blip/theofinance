@@ -37,20 +37,29 @@ export interface Account {
   balance: number
   currency: string
   color: string
+  is_private?: boolean
   owner?: 'primary' | 'secondary' | 'joint'
   created_at: string
   updated_at: string
 }
 
+export type RecurringRule = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'yearly'
+
 export interface Transaction {
   id: string
   couple_id: string
   account_id: string
+  to_account_id?: string | null
   amount: number
   type: 'income' | 'expense' | 'transfer'
   category: string
+  subcategory?: string | null
   description?: string
   date: string
+  paid_by_user_id?: string | null
+  recurring_rule?: RecurringRule | null
+  recurring_until?: string | null
+  category_id?: string | null
   created_by: string
   created_at: string
   updated_at: string
