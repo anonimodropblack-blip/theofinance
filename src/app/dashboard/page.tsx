@@ -278,7 +278,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-[var(--text)]">Contas favoritas</h3>
             <Link
-              href="/dashboard/accounts"
+              href="/dashboard/contas"
               className="inline-flex items-center gap-1 text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm font-medium"
             >
               Ver todas <ArrowRight className="h-3.5 w-3.5" />
@@ -288,7 +288,7 @@ export default function DashboardPage() {
             {favorites.map((fav) => (
               <Link
                 key={fav.id}
-                href={`/dashboard/accounts/${fav.accounts.id}`}
+                href={`/dashboard/contas/${fav.accounts.id}`}
                 className="card card-hover p-5"
               >
                 <div className="flex items-start justify-between mb-3">
@@ -318,14 +318,14 @@ export default function DashboardPage() {
         <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Ações rápidas</h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {[
-            { href: '/dashboard/accounts', Icon: Wallet, label: 'Contas' },
-            { href: '/dashboard/transactions', Icon: CircleDollarSign, label: 'Transações' },
-            { href: '/dashboard/reports', Icon: BarChart3, label: 'Relatórios' },
-            { href: '/dashboard/due-bills', Icon: CalendarDays, label: 'A vencer' },
-            { href: '/dashboard/fixed-accounts', Icon: CircleDollarSign, label: 'Contas fixas' },
-            { href: '/dashboard/savings-goals', Icon: Target, label: 'Caixinhas' },
+            { href: '/dashboard/contas', Icon: Wallet, label: 'Contas' },
+            { href: '/dashboard/transacoes', Icon: CircleDollarSign, label: 'Transações' },
+            { href: '/dashboard/relatorios', Icon: BarChart3, label: 'Relatórios' },
+            { href: '/dashboard/calendario', Icon: CalendarDays, label: 'A vencer' },
+            { href: '/dashboard/contas-fixas', Icon: CircleDollarSign, label: 'Contas fixas' },
+            { href: '/dashboard/objetivos', Icon: Target, label: 'Caixinhas' },
             { href: '/dashboard/chat', Icon: MessageCircle, label: 'Chat IA' },
-            { href: '/dashboard/debts', Icon: PiggyBank, label: 'Dívidas' },
+            { href: '/dashboard/dividas', Icon: PiggyBank, label: 'Dívidas' },
           ].map(({ href, Icon, label }) => (
             <Link
               key={href}

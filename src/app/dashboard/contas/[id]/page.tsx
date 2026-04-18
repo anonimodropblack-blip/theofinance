@@ -55,7 +55,7 @@ export default function AccountDetailPage({
     return (
       <div className="space-y-4">
         <Link
-          href="/dashboard/accounts"
+          href="/dashboard/contas"
           className="text-rose-500 hover:text-rose-400"
         >
           ← Voltar
@@ -69,7 +69,7 @@ export default function AccountDetailPage({
     return (
       <div className="space-y-4">
         <Link
-          href="/dashboard/accounts"
+          href="/dashboard/contas"
           className="text-rose-500 hover:text-rose-400"
         >
           ← Voltar
@@ -84,7 +84,7 @@ export default function AccountDetailPage({
   return (
     <div className="space-y-6">
       <Link
-        href="/dashboard/accounts"
+        href="/dashboard/contas"
         className="text-rose-500 hover:text-rose-400"
       >
         ← Voltar para Contas

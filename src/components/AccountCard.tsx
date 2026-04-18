@@ -59,7 +59,7 @@ export default function AccountCard({
   }
 
   return (
-    <Link href={`/dashboard/accounts/${id}`}>
+    <Link href={`/dashboard/contas/${id}`}>
       <div className="card card-hover p-5 cursor-pointer group">
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0">

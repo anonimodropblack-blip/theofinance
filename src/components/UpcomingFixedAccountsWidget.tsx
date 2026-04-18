@@ -40,7 +40,7 @@ export default function UpcomingFixedAccountsWidget({ accounts }: UpcomingFixedA
     <div className="p-6 bg-slate-800/50 border border-slate-700 rounded-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-white">Contas Fixas</h3>
-        <Link href="/dashboard/fixed-accounts" className="text-rose-500 hover:text-rose-400 text-sm">
+        <Link href="/dashboard/contas-fixas" className="text-rose-500 hover:text-rose-400 text-sm">
           Ver todas →
         </Link>
       </div>

@@ -47,7 +47,7 @@
       "name": "Registrar transação",
       "short_name": "Nova transação",
       "description": "Registrar nova receita ou despesa rapidamente",
-      "url": "/dashboard/transactions?new=1",
+      "url": "/dashboard/transacoes?new=1",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
@@ -58,10 +58,10 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Contas a pagar",
-      "short_name": "Contas",
+      "name": "Calendário financeiro",
+      "short_name": "Calendário",
       "description": "Ver contas próximas do vencimento",
-      "url": "/dashboard/due-bills",
+      "url": "/dashboard/calendario",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Wallet,
   ArrowLeftRight,
-  PiggyBank,
   Target,
   TrendingUp,
   CalendarDays,
@@ -32,17 +31,18 @@ type NavItem = {
 
 const NAV: NavItem[] = [
   { name: 'Visão geral', href: '/dashboard', icon: LayoutDashboard, group: 'principal' },
-  { name: 'Contas', href: '/dashboard/accounts', icon: Wallet, group: 'financas' },
-  { name: 'Transações', href: '/dashboard/transactions', icon: ArrowLeftRight, group: 'financas' },
-  { name: 'Contas fixas', href: '/dashboard/fixed-accounts', icon: CircleDollarSign, group: 'financas' },
-  { name: 'Dívidas', href: '/dashboard/debts', icon: CircleDollarSign, group: 'financas' },
-  { name: 'Caixinhas', href: '/dashboard/savings-goals', icon: PiggyBank, group: 'planejamento' },
-  { name: 'Vencimentos', href: '/dashboard/due-bills', icon: CalendarDays, group: 'planejamento' },
-  { name: 'Relatórios', href: '/dashboard/reports', icon: BarChart3, group: 'planejamento' },
+  { name: 'Contas', href: '/dashboard/contas', icon: Wallet, group: 'financas' },
+  { name: 'Transações', href: '/dashboard/transacoes', icon: ArrowLeftRight, group: 'financas' },
+  { name: 'Contas fixas', href: '/dashboard/contas-fixas', icon: CircleDollarSign, group: 'financas' },
+  { name: 'Dívidas', href: '/dashboard/dividas', icon: CircleDollarSign, group: 'financas' },
+  { name: 'Investimentos', href: '/dashboard/investimentos', icon: TrendingUp, group: 'financas' },
+  { name: 'Metas', href: '/dashboard/objetivos', icon: Target, group: 'planejamento' },
+  { name: 'Calendário', href: '/dashboard/calendario', icon: CalendarDays, group: 'planejamento' },
+  { name: 'Relatórios', href: '/dashboard/relatorios', icon: BarChart3, group: 'planejamento' },
   { name: 'Insights', href: '/dashboard/insights', icon: TrendingUp, group: 'planejamento' },
   { name: 'Chat IA', href: '/dashboard/chat', icon: MessageCircle, group: 'sistema' },
-  { name: 'Lixeira', href: '/dashboard/trash', icon: Trash2, group: 'sistema' },
-  { name: 'Configurações', href: '/dashboard/settings', icon: Settings, group: 'sistema' },
+  { name: 'Lixeira', href: '/dashboard/lixeira', icon: Trash2, group: 'sistema' },
+  { name: 'Configurações', href: '/dashboard/configuracoes', icon: Settings, group: 'sistema' },
 ]
 
 const GROUP_LABEL: Record<NavItem['group'], string> = {

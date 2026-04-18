@@ -27,7 +27,7 @@ export default function UpcomingDueBillsWidget({ bills }: UpcomingDueBillsWidget
           <h3 className="text-lg font-semibold text-[var(--text)]">Contas a vencer</h3>
         </div>
         <Link
-          href="/dashboard/due-bills"
+          href="/dashboard/calendario"
           className="inline-flex items-center gap-1 text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm font-medium"
         >
           Ver todas

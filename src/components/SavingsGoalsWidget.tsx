@@ -35,7 +35,7 @@ export default function SavingsGoalsWidget({ goals }: SavingsGoalsWidgetProps) {
           <h3 className="text-lg font-semibold text-[var(--text)]">Caixinhas</h3>
         </div>
         <Link
-          href="/dashboard/savings-goals"
+          href="/dashboard/objetivos"
           className="inline-flex items-center gap-1 text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm font-medium"
         >
           Ver todas
