@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, amount, frequency, due_date, category, description } = body
+    const { name, amount, frequency, type, due_date, category, description } = body
 
     if (!name || !amount || !frequency) {
       return NextResponse.json(
@@ -101,6 +101,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const normalizedType = type === 'income' ? 'income' : 'expense'
+
     const { data: newFixedAccount } = await supabase
       .from('fixed_accounts')
       .insert({
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
         name,
         amount,
         frequency,
+        type: normalizedType,
         due_date,
         category,
         description,

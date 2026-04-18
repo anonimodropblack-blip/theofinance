@@ -17,6 +17,7 @@ export default function FixedAccountsPage() {
     name: '',
     amount: '',
     frequency: 'monthly' as const,
+    type: 'expense' as 'expense' | 'income',
     due_date: '',
     category: '',
     description: '',
@@ -46,6 +47,7 @@ export default function FixedAccountsPage() {
         name: formData.name,
         amount: parseFloat(formData.amount),
         frequency: formData.frequency,
+        type: formData.type,
         due_date: formData.due_date ? parseInt(formData.due_date) : null,
         category: formData.category || null,
         description: formData.description || null,
@@ -79,6 +81,7 @@ export default function FixedAccountsPage() {
         name: '',
         amount: '',
         frequency: 'monthly',
+        type: 'expense',
         due_date: '',
         category: '',
         description: '',
@@ -127,6 +130,7 @@ export default function FixedAccountsPage() {
       name: account.name,
       amount: account.amount.toString(),
       frequency: account.frequency as 'monthly',
+      type: (account.type ?? 'expense') as 'expense' | 'income',
       due_date: account.due_date?.toString() || '',
       category: account.category || '',
       description: account.description || '',
@@ -194,6 +198,7 @@ export default function FixedAccountsPage() {
               name: '',
               amount: '',
               frequency: 'monthly',
+              type: 'expense',
               due_date: '',
               category: '',
               description: '',
@@ -259,6 +264,20 @@ export default function FixedAccountsPage() {
                     placeholder="0.00"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-slate-400 mb-2">Tipo*</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) =>
+                      setFormData({ ...formData, type: e.target.value as 'expense' | 'income' })
+                    }
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
+                  >
+                    <option value="expense">Despesa recorrente</option>
+                    <option value="income">Receita recorrente</option>
+                  </select>
                 </div>
 
                 <div>

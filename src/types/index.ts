@@ -59,12 +59,15 @@ export interface Transaction {
 // Fixed Accounts & Savings Goals
 export type FrequencyType = 'weekly' | 'biweekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'yearly'
 
+export type FixedAccountType = 'expense' | 'income'
+
 export interface FixedAccount {
   id: string
   couple_id: string
   name: string
   amount: number
   frequency: FrequencyType
+  type: FixedAccountType
   due_date?: number
   category?: string
   description?: string

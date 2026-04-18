@@ -43,20 +43,25 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, amount, frequency, due_date, category, description, is_active } = body
+    const { name, amount, frequency, type, due_date, category, description, is_active } = body
+
+    const updatePayload: Record<string, unknown> = {
+      name,
+      amount,
+      frequency,
+      due_date,
+      category,
+      description,
+      is_active,
+      updated_at: new Date().toISOString(),
+    }
+    if (type === 'income' || type === 'expense') {
+      updatePayload.type = type
+    }
 
     const { data: updatedAccount } = await supabase
       .from('fixed_accounts')
-      .update({
-        name,
-        amount,
-        frequency,
-        due_date,
-        category,
-        description,
-        is_active,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', (await params).id)
       .eq('couple_id', coupleData.id)
       .select()
