@@ -26,10 +26,12 @@ create table if not exists reminders (
   bill_id uuid not null references due_bills(id) on delete cascade,
   reminder_type text not null check (reminder_type in ('email', 'sms', 'push', 'in_app')),
   sent_at timestamp with time zone not null default now(),
-  status text default 'sent' check (status in ('sent', 'failed', 'read')),
-
-  unique(bill_id, reminder_type, date_trunc('day', sent_at))
+  sent_date date not null default current_date,
+  status text default 'sent' check (status in ('sent', 'failed', 'read'))
 );
+
+create unique index if not exists reminders_unique_per_day
+  on reminders (bill_id, reminder_type, sent_date);
 
 -- Bill payments table (histórico de pagamentos)
 create table if not exists bill_payments (
