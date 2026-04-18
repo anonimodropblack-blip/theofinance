@@ -1,5 +1,7 @@
 'use client'
 
+import { BarChart3 } from 'lucide-react'
+
 interface ForecastCardProps {
   averageMonthlyExpense: number
   averageDailyExpense: number
@@ -11,47 +13,42 @@ export default function ForecastCard({
   averageDailyExpense,
   totalForecast30Days,
 }: ForecastCardProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value)
-  }
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
   return (
-    <div className="p-6 bg-slate-800/50 border border-slate-700 rounded-lg">
+    <div className="card p-6">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-lg font-semibold text-white">Previsão de Gastos</h3>
-        <span className="text-2xl">📊</span>
+        <h3 className="text-lg font-semibold text-[var(--text)]">Previsão de gastos</h3>
+        <div className="h-9 w-9 rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center">
+          <BarChart3 className="h-4 w-4" strokeWidth={2} />
+        </div>
       </div>
 
-      <div className="space-y-4">
-        {/* Média Mensal */}
-        <div className="p-3 bg-slate-900/50 rounded-lg">
-          <p className="text-sm text-slate-400">Média Mensal (últimos 3 meses)</p>
-          <p className="text-2xl font-bold text-rose-400 mt-1">
+      <div className="space-y-3">
+        <div className="p-4 rounded-xl bg-[var(--bg)]">
+          <p className="text-sm text-[var(--text-muted)]">Média mensal (últimos 3 meses)</p>
+          <p className="text-2xl font-semibold text-[var(--danger)] mt-1 tabular-nums">
             {formatCurrency(averageMonthlyExpense)}
           </p>
         </div>
 
-        {/* Média Diária */}
-        <div className="p-3 bg-slate-900/50 rounded-lg">
-          <p className="text-sm text-slate-400">Média Diária</p>
-          <p className="text-xl font-semibold text-slate-200 mt-1">
+        <div className="p-4 rounded-xl bg-[var(--bg)]">
+          <p className="text-sm text-[var(--text-muted)]">Média diária</p>
+          <p className="text-xl font-semibold text-[var(--text)] mt-1 tabular-nums">
             {formatCurrency(averageDailyExpense)}
           </p>
         </div>
 
-        {/* Previsão 30 dias */}
-        <div className="p-3 bg-gradient-to-r from-rose-900/30 to-rose-800/20 border border-rose-700/30 rounded-lg">
-          <p className="text-sm text-slate-400">Previsão Próximos 30 Dias</p>
-          <p className="text-2xl font-bold text-rose-300 mt-1">
+        <div className="p-4 rounded-xl border border-[color:rgba(239,68,68,0.25)] bg-[var(--danger-subtle)]">
+          <p className="text-sm text-[var(--text-muted)]">Previsão próximos 30 dias</p>
+          <p className="text-2xl font-semibold text-[var(--danger)] mt-1 tabular-nums">
             {formatCurrency(totalForecast30Days)}
           </p>
         </div>
       </div>
 
-      <p className="text-xs text-slate-500 mt-4">
+      <p className="text-xs text-[var(--text-subtle)] mt-4">
         Baseado na média dos últimos 3 meses
       </p>
     </div>

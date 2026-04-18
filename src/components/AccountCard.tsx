@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { Star } from 'lucide-react'
 
 interface AccountCardProps {
   id: string
@@ -59,34 +60,38 @@ export default function AccountCard({
 
   return (
     <Link href={`/dashboard/accounts/${id}`}>
-      <div className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-rose-600 cursor-pointer transition-colors group">
+      <div className="card card-hover p-5 cursor-pointer group">
         <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="font-semibold text-white group-hover:text-rose-400 transition-colors">
+          <div className="min-w-0">
+            <h3 className="font-semibold text-[var(--text)] group-hover:text-[var(--primary)] transition-colors truncate">
               {name}
             </h3>
-            <p className="text-xs text-slate-400">{typeLabels[type]}</p>
+            <p className="text-xs text-[var(--text-subtle)] mt-0.5">{typeLabels[type] ?? type}</p>
           </div>
 
           <button
             onClick={handleFavoriteToggle}
             disabled={favLoading}
-            className="p-1 rounded hover:bg-slate-700 transition-colors"
+            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--gold)] hover:bg-[var(--gold-subtle)] transition-colors"
             title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
+            aria-label={isFavorite ? 'Remover favorito' : 'Favoritar'}
           >
-            <span className={`text-lg ${isFavorite ? '⭐' : '☆'}`}>
-              {isFavorite ? '⭐' : '☆'}
-            </span>
+            <Star
+              className="h-4 w-4"
+              fill={isFavorite ? 'currentColor' : 'none'}
+              style={isFavorite ? { color: 'var(--gold)' } : undefined}
+              strokeWidth={2}
+            />
           </button>
         </div>
 
         <div
-          className="w-2 h-2 rounded-full mb-3"
+          className="w-8 h-1 rounded-full mb-4"
           style={{ backgroundColor: color }}
-        ></div>
+        />
 
-        <div className="pt-3 border-t border-slate-700">
-          <p className="text-2xl font-bold text-white">
+        <div className="pt-3 border-t border-[var(--border)]">
+          <p className="text-2xl font-semibold text-[var(--text)] tabular-nums">
             {new Intl.NumberFormat('pt-BR', {
               style: 'currency',
               currency,

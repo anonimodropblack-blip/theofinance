@@ -16,8 +16,8 @@ export default function SavingsGoalsPage() {
   const [formData, setFormData] = useState({
     name: '',
     target_amount: '',
-    icon: '🎯',
-    color: '#ec4899',
+    icon: 'target',
+    color: '#3B82F6',
     deadline: '',
   })
   const [contributeAmount, setContributeAmount] = useState('')
@@ -60,7 +60,7 @@ export default function SavingsGoalsPage() {
         setFormData({
           name: '',
           target_amount: '',
-          icon: '🎯',
+          icon: 'target',
           color: '#ec4899',
           deadline: '',
         })
@@ -143,7 +143,7 @@ export default function SavingsGoalsPage() {
       <header className="border-b border-slate-700 bg-slate-800/50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">Caixinhas 🎯</h1>
+            <h1 className="text-2xl font-bold text-white">Caixinhas</h1>
             <p className="text-sm text-slate-400">Alcance suas metas financeiras</p>
           </div>
           <Link href="/dashboard" className="text-slate-400 hover:text-white">
@@ -188,7 +188,7 @@ export default function SavingsGoalsPage() {
             setFormData({
               name: '',
               target_amount: '',
-              icon: '🎯',
+              icon: 'target',
               color: '#ec4899',
               deadline: '',
             })
@@ -266,12 +266,12 @@ export default function SavingsGoalsPage() {
                       onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
                     >
-                      <option value="🎯">🎯 Meta</option>
-                      <option value="✈️">✈️ Férias</option>
-                      <option value="🏠">🏠 Casa</option>
-                      <option value="🚗">🚗 Carro</option>
-                      <option value="📚">📚 Educação</option>
-                      <option value="💎">💎 Luxo</option>
+                      <option value="target">Meta</option>
+                      <option value="plane">Férias</option>
+                      <option value="house">Casa</option>
+                      <option value="car">Carro</option>
+                      <option value="book">Educação</option>
+                      <option value="gem">Luxo</option>
                       <option value="🎮">🎮 Entretenimento</option>
                       <option value="❤️">❤️ Família</option>
                     </select>

@@ -1,0 +1,20 @@
+{
+  "name": "TheoFinance — Controle do casal",
+  "short_name": "TheoFinance",
+  "description": "Sistema financeiro inteligente para casais.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B0F14",
+  "theme_color": "#0B0F14",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

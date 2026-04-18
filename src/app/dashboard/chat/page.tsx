@@ -87,7 +87,7 @@ export default function ChatPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex flex-col">
       <header className="border-b border-slate-700 bg-slate-800/50">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Chat IA 🤖</h1>
+          <h1 className="text-2xl font-bold text-white">Chat IA</h1>
           <Link href="/dashboard" className="text-slate-400 hover:text-white">
             ← Voltar
           </Link>

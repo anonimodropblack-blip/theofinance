@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, target_amount, current_amount = 0, icon = '🎯', color = '#ec4899', deadline } = body
+    const { name, target_amount, current_amount = 0, icon = 'target', color = '#ec4899', deadline } = body
 
     if (!name || !target_amount) {
       return NextResponse.json(

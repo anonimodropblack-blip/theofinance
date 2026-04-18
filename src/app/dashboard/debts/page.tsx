@@ -193,7 +193,6 @@ export default function DebtsPage() {
           <div className="text-center text-slate-400 py-12">Carregando...</div>
         ) : debts.length === 0 ? (
           <div className="text-center py-16 bg-slate-800 rounded-xl border border-slate-700">
-            <p className="text-4xl mb-3">💳</p>
             <p className="text-slate-300 font-medium">Nenhuma divida cadastrada</p>
             <p className="text-slate-500 text-sm mt-1">Adicione suas dividas para acompanhar o progresso</p>
             <button onClick={openCreate} className="mt-4 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">

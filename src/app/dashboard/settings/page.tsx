@@ -183,7 +183,7 @@ export default function SettingsPage() {
                   Ícone
                 </label>
                 <div className="flex gap-2 flex-wrap">
-                  {['🛒', '🍔', '🚗', '🏠', '💊', '📚', '🎬', '✈️'].map(
+                  {['shopping-cart','utensils','car','home','pill','book','film','plane'].map(
                     (emoji) => (
                       <button
                         key={emoji}

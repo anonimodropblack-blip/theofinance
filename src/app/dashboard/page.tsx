@@ -4,6 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  ArrowRight,
+  Wallet,
+  TrendingUp,
+  MessageCircle,
+  CalendarDays,
+  Target,
+  PiggyBank,
+  BarChart3,
+  CircleDollarSign,
+  Users,
+} from 'lucide-react'
 import type { Couple, User, FixedAccount, SavingsGoal, DueBill } from '@/types'
 import ForecastCard from '@/components/ForecastCard'
 import UpcomingFixedAccountsWidget from '@/components/UpcomingFixedAccountsWidget'
@@ -38,11 +52,11 @@ interface Forecast {
   averageDailyExpense: number
   totalForecast30Days: number
   basedOnMonths: number
-  dailyForecast: Array<{
-    date: string
-    expectedExpense: number
-  }>
+  dailyForecast: Array<{ date: string; expectedExpense: number }>
 }
+
+const formatBRL = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -54,9 +68,8 @@ export default function DashboardPage() {
   const [fixedAccounts, setFixedAccounts] = useState<FixedAccount[]>([])
   const [savingsGoals, setSavingsGoals] = useState<SavingsGoal[]>([])
   const [dueBills, setDueBills] = useState<DueBill[]>([])
-  const [viewMode, setViewMode] = useState<'primary' | 'secondary'>('primary')
+  const [viewMode, setViewMode] = useState<'primary' | 'secondary' | 'couple'>('couple')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
 
   useEffect(() => {
     const loadSession = async () => {
@@ -66,9 +79,7 @@ export default function DashboardPage() {
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
         )
 
-        // Get current user
         const { data: authData, error: authError } = await supabase.auth.getUser()
-
         if (authError || !authData.user) {
           router.push('/auth/login')
           return
@@ -81,43 +92,24 @@ export default function DashboardPage() {
           created_at: authData.user.created_at,
         })
 
-        // Get couple info
-        const { data: coupleData, error: coupleError } = await supabase
+        const { data: coupleData } = await supabase
           .from('couples')
           .select('*')
           .or(`primary_user_id.eq.${authData.user.id},secondary_user_id.eq.${authData.user.id}`)
           .single()
 
-        if (coupleError) {
-          setError('Failed to load couple data')
-          return
-        }
-
-        setCouple(coupleData)
-
-        // Set view mode based on user role
-        if (coupleData.primary_user_id === authData.user.id) {
-          setViewMode('primary')
-        } else {
-          setViewMode('secondary')
-        }
-
+        if (coupleData) setCouple(coupleData)
         setLoading(false)
       } catch (err) {
         console.error('Load session error:', err)
-        setError('An error occurred')
         setLoading(false)
       }
     }
-
     loadSession()
   }, [router])
 
-  // Load favorites and summary
   useEffect(() => {
-    if (!loading) {
-      loadDashboardData()
-    }
+    if (!loading) loadDashboardData()
   }, [loading])
 
   const loadDashboardData = async () => {
@@ -131,330 +123,223 @@ export default function DashboardPage() {
         fetch('/api/due-bills'),
       ])
 
-      const favData = await favRes.json()
-      const sumData = await sumRes.json()
-      const foreData = await foreRes.json()
-      const fixedData = await fixedRes.json()
-      const savingsData = await savingsRes.json()
-      const billsData = await billsRes.json()
-
-      if (favRes.ok) {
-        setFavorites(favData.favorites || [])
-      }
-
-      if (sumRes.ok) {
-        setSummary(sumData.summary)
-      }
-
-      if (foreRes.ok) {
-        setForecast(foreData.forecast)
-      }
-
-      if (fixedRes.ok) {
-        setFixedAccounts(fixedData.fixedAccounts || [])
-      }
-
-      if (savingsRes.ok) {
-        setSavingsGoals(savingsData.savingsGoals || [])
-      }
-
-      if (billsRes.ok) {
-        setDueBills(billsData.dueBills || [])
-      }
+      if (favRes.ok) setFavorites((await favRes.json()).favorites || [])
+      if (sumRes.ok) setSummary((await sumRes.json()).summary)
+      if (foreRes.ok) setForecast((await foreRes.json()).forecast)
+      if (fixedRes.ok) setFixedAccounts((await fixedRes.json()).fixedAccounts || [])
+      if (savingsRes.ok) setSavingsGoals((await savingsRes.json()).savingsGoals || [])
+      if (billsRes.ok) setDueBills((await billsRes.json()).dueBills || [])
     } catch (err) {
       console.error('Load dashboard data error:', err)
     }
   }
 
-  const handleLogout = async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    )
-
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="flex items-center justify-center py-20 text-[var(--text-muted)] text-sm">
+        Carregando dashboard…
       </div>
     )
   }
 
-  if (error || !user || !couple) {
+  if (!user || !couple) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-200 mb-4">{error || 'Failed to load dashboard'}</p>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg"
-          >
-            Return to Login
-          </button>
-        </div>
+      <div className="text-[var(--text-muted)]">
+        Não foi possível carregar seus dados.{' '}
+        <Link href="/auth/login" className="text-[var(--primary)] underline">
+          Voltar ao login
+        </Link>
       </div>
     )
   }
+
+  const primaryLabel = couple.primary_user_email.split('@')[0]
+  const secondaryLabel = couple.secondary_user_email?.split('@')[0]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">
-            Theo<span className="text-rose-500">Finance</span>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Greeting + view mode */}
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">
+            Olá, {primaryLabel}
           </h1>
-
-          <div className="flex items-center gap-6">
-            {/* View Mode Toggle */}
-            {couple.secondary_user_id && (
-              <div className="flex items-center gap-3 bg-slate-700 rounded-lg p-2">
-                <button
-                  onClick={() => setViewMode('primary')}
-                  className={`px-3 py-1 rounded transition-colors ${
-                    viewMode === 'primary'
-                      ? 'bg-rose-600 text-white'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {couple.primary_user_email.split('@')[0]}
-                </button>
-                <div className="w-px h-6 bg-slate-600"></div>
-                <button
-                  onClick={() => setViewMode('secondary')}
-                  className={`px-3 py-1 rounded transition-colors ${
-                    viewMode === 'secondary'
-                      ? 'bg-rose-600 text-white'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  {couple.secondary_user_email?.split('@')[0] || 'Partner'}
-                </button>
-              </div>
-            )}
-
-            {/* User Menu */}
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-400">{user.email}</span>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        {/* Welcome Card */}
-        <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Bem-vindo de volta!
-          </h2>
-          <p className="text-slate-400">
-            Visualizando como <span className="text-rose-500 font-medium">
-              {viewMode === 'primary' ? couple?.primary_user_email : couple?.secondary_user_email || 'Partner'}
-            </span>
+          <p className="text-sm text-[var(--text-muted)] mt-1">
+            Aqui está o panorama financeiro{' '}
+            {viewMode === 'couple' ? 'do casal' : 'individual'} de hoje.
           </p>
         </div>
 
-        {/* Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-6 bg-green-900/20 border border-green-500/30 rounded-lg">
-              <p className="text-slate-400 text-sm font-medium mb-2">RECEITA</p>
-              <p className="text-2xl font-bold text-green-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(summary.totalIncome)}
-              </p>
-            </div>
-
-            <div className="p-6 bg-red-900/20 border border-red-500/30 rounded-lg">
-              <p className="text-slate-400 text-sm font-medium mb-2">DESPESA</p>
-              <p className="text-2xl font-bold text-red-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(summary.totalExpense)}
-              </p>
-            </div>
-
-            <div className={`p-6 rounded-lg border ${
-              summary.net >= 0
-                ? 'bg-blue-900/20 border-blue-500/30'
-                : 'bg-orange-900/20 border-orange-500/30'
-            }`}>
-              <p className="text-slate-400 text-sm font-medium mb-2">SALDO</p>
-              <p className={`text-2xl font-bold ${
-                summary.net >= 0 ? 'text-blue-400' : 'text-orange-400'
-              }`}>
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(summary.net)}
-              </p>
-            </div>
-
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm font-medium mb-2">TOTAL CONTAS</p>
-              <p className="text-2xl font-bold text-white">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(summary.totalAccountsBalance)}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Forecast Card */}
-        {forecast && (
-          <ForecastCard
-            averageMonthlyExpense={forecast.averageMonthlyExpense}
-            averageDailyExpense={forecast.averageDailyExpense}
-            totalForecast30Days={forecast.totalForecast30Days}
-          />
-        )}
-
-        {/* Widgets Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {fixedAccounts.length > 0 && (
-            <UpcomingFixedAccountsWidget accounts={fixedAccounts} />
-          )}
-          {savingsGoals.length > 0 && (
-            <SavingsGoalsWidget goals={savingsGoals} />
-          )}
-          {dueBills.length > 0 && (
-            <UpcomingDueBillsWidget bills={dueBills} />
-          )}
-        </div>
-
-        {/* Favorite Accounts */}
-        {favorites && favorites.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Contas Favoritas</h3>
-              <Link href="/dashboard/accounts" className="text-rose-500 hover:text-rose-400 text-sm">
-                Ver todas →
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {favorites.map((fav) => (
-                <Link
-                  key={fav.id}
-                  href={`/dashboard/accounts/${fav.accounts.id}`}
-                  className="p-4 bg-slate-800 border border-slate-700 rounded-lg hover:border-rose-600 transition-colors"
+        {couple.secondary_user_id && (
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)]">
+            {[
+              { id: 'couple', label: 'Casal', Icon: Users },
+              { id: 'primary', label: primaryLabel, Icon: null },
+              { id: 'secondary', label: secondaryLabel ?? 'Parceiro(a)', Icon: null },
+            ].map((opt) => {
+              const active = viewMode === opt.id
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setViewMode(opt.id as typeof viewMode)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                    active
+                      ? 'bg-[var(--primary)] text-white shadow-sm'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+                  }`}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h4 className="font-semibold text-white">{fav.accounts.name}</h4>
-                      <p className="text-xs text-slate-400">{fav.accounts.type}</p>
-                    </div>
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: fav.accounts.color }}
-                    ></div>
-                  </div>
-                  <div className="pt-3 border-t border-slate-700">
-                    <p className="text-2xl font-bold text-white">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: fav.accounts.currency || 'BRL',
-                      }).format(fav.accounts.balance || 0)}
-                    </p>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  {opt.Icon && <opt.Icon className="h-3.5 w-3.5" />}
+                  {opt.label}
+                </button>
+              )
+            })}
           </div>
         )}
+      </div>
 
-        {/* Quick Actions */}
+      {/* Summary cards */}
+      {summary && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Receita</p>
+              <div className="h-8 w-8 rounded-lg bg-[var(--success-subtle)] flex items-center justify-center">
+                <ArrowUpRight className="h-4 w-4 text-[var(--success)]" />
+              </div>
+            </div>
+            <p className="text-2xl font-semibold text-[var(--success)] tabular-nums">
+              {formatBRL(summary.totalIncome)}
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Despesa</p>
+              <div className="h-8 w-8 rounded-lg bg-[var(--danger-subtle)] flex items-center justify-center">
+                <ArrowDownRight className="h-4 w-4 text-[var(--danger)]" />
+              </div>
+            </div>
+            <p className="text-2xl font-semibold text-[var(--danger)] tabular-nums">
+              {formatBRL(summary.totalExpense)}
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Saldo</p>
+              <div className="h-8 w-8 rounded-lg bg-[var(--primary-subtle)] flex items-center justify-center">
+                <TrendingUp className="h-4 w-4 text-[var(--primary)]" />
+              </div>
+            </div>
+            <p
+              className={`text-2xl font-semibold tabular-nums ${
+                summary.net >= 0 ? 'text-[var(--primary)]' : 'text-[var(--danger)]'
+              }`}
+            >
+              {formatBRL(summary.net)}
+            </p>
+          </div>
+
+          <div className="card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Patrimônio</p>
+              <div className="h-8 w-8 rounded-lg bg-[var(--gold-subtle)] flex items-center justify-center">
+                <Wallet className="h-4 w-4 text-[var(--gold)]" />
+              </div>
+            </div>
+            <p className="text-2xl font-semibold text-[var(--text)] tabular-nums">
+              {formatBRL(summary.totalAccountsBalance)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Forecast */}
+      {forecast && (
+        <ForecastCard
+          averageMonthlyExpense={forecast.averageMonthlyExpense}
+          averageDailyExpense={forecast.averageDailyExpense}
+          totalForecast30Days={forecast.totalForecast30Days}
+        />
+      )}
+
+      {/* Widgets */}
+      {(fixedAccounts.length > 0 || savingsGoals.length > 0 || dueBills.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {fixedAccounts.length > 0 && <UpcomingFixedAccountsWidget accounts={fixedAccounts} />}
+          {savingsGoals.length > 0 && <SavingsGoalsWidget goals={savingsGoals} />}
+          {dueBills.length > 0 && <UpcomingDueBillsWidget bills={dueBills} />}
+        </div>
+      )}
+
+      {/* Favoritos */}
+      {favorites.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Ações Rápidas</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-[var(--text)]">Contas favoritas</h3>
             <Link
               href="/dashboard/accounts"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
+              className="inline-flex items-center gap-1 text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm font-medium"
             >
-              <p className="text-2xl mb-2">🏦</p>
-              <p className="font-medium text-white">Contas</p>
-            </Link>
-            <Link
-              href="/dashboard/transactions"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">💰</p>
-              <p className="font-medium text-white">Transações</p>
-            </Link>
-            <Link
-              href="/dashboard/reports"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">📈</p>
-              <p className="font-medium text-white">Relatórios</p>
-            </Link>
-            <Link
-              href="/dashboard/due-bills"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">⏰</p>
-              <p className="font-medium text-white">A Vencer</p>
-            </Link>
-            <Link
-              href="/dashboard/fixed-accounts"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">📋</p>
-              <p className="font-medium text-white">Contas Fixas</p>
-            </Link>
-            <Link
-              href="/dashboard/savings-goals"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">🎯</p>
-              <p className="font-medium text-white">Caixinhas</p>
-            </Link>
-            <Link
-              href="/dashboard/chat"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">🤖</p>
-              <p className="font-medium text-white">Chat IA</p>
-            </Link>
-            <Link
-              href="/dashboard/debts"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">💳</p>
-              <p className="font-medium text-white">Dividas</p>
-            </Link>
-            <Link
-              href="/dashboard/trash"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">🗑️</p>
-              <p className="font-medium text-slate-400">Lixeira</p>
-            </Link>
-            <Link
-              href="/dashboard/settings"
-              className="p-4 bg-slate-800 border border-slate-700 hover:border-rose-600 rounded-lg transition-colors text-center"
-            >
-              <p className="text-2xl mb-2">⚙️</p>
-              <p className="font-medium text-white">Configurações</p>
+              Ver todas <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {favorites.map((fav) => (
+              <Link
+                key={fav.id}
+                href={`/dashboard/accounts/${fav.accounts.id}`}
+                className="card card-hover p-5"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h4 className="font-semibold text-[var(--text)]">{fav.accounts.name}</h4>
+                    <p className="text-xs text-[var(--text-subtle)] mt-0.5">{fav.accounts.type}</p>
+                  </div>
+                  <div
+                    className="w-8 h-1 rounded-full"
+                    style={{ backgroundColor: fav.accounts.color }}
+                  />
+                </div>
+                <p className="text-2xl font-semibold text-[var(--text)] tabular-nums">
+                  {new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: fav.accounts.currency || 'BRL',
+                  }).format(fav.accounts.balance || 0)}
+                </p>
+              </Link>
+            ))}
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* Ações rápidas */}
+      <div>
+        <h3 className="text-lg font-semibold text-[var(--text)] mb-4">Ações rápidas</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          {[
+            { href: '/dashboard/accounts', Icon: Wallet, label: 'Contas' },
+            { href: '/dashboard/transactions', Icon: CircleDollarSign, label: 'Transações' },
+            { href: '/dashboard/reports', Icon: BarChart3, label: 'Relatórios' },
+            { href: '/dashboard/due-bills', Icon: CalendarDays, label: 'A vencer' },
+            { href: '/dashboard/fixed-accounts', Icon: CircleDollarSign, label: 'Contas fixas' },
+            { href: '/dashboard/savings-goals', Icon: Target, label: 'Caixinhas' },
+            { href: '/dashboard/chat', Icon: MessageCircle, label: 'Chat IA' },
+            { href: '/dashboard/debts', Icon: PiggyBank, label: 'Dívidas' },
+          ].map(({ href, Icon, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="card card-hover p-4 flex flex-col items-center gap-2 text-center"
+            >
+              <div className="h-10 w-10 rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center">
+                <Icon className="h-5 w-5" strokeWidth={2} />
+              </div>
+              <p className="text-sm font-medium text-[var(--text)]">{label}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
