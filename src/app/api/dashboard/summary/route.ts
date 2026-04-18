@@ -69,6 +69,14 @@ export async function GET(request: NextRequest) {
       .from('accounts')
       .select('balance')
       .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
+
+    // Get investments (patrimônio aplicado)
+    const { data: investments } = await supabase
+      .from('investments')
+      .select('invested_amount, current_amount')
+      .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
 
     // Calculate
     let totalIncome = 0
@@ -82,6 +90,14 @@ export async function GET(request: NextRequest) {
     const totalAccountsBalance =
       accounts?.reduce((sum, a) => sum + (a.balance || 0), 0) || 0
 
+    const totalInvested =
+      investments?.reduce((sum, i) => sum + Number(i.invested_amount || 0), 0) || 0
+    const totalInvestmentsCurrent =
+      investments?.reduce((sum, i) => sum + Number(i.current_amount || 0), 0) || 0
+    const investmentsProfit = totalInvestmentsCurrent - totalInvested
+
+    const netWorth = totalAccountsBalance + totalInvestmentsCurrent
+
     const summary = {
       period,
       totalIncome,
@@ -90,6 +106,11 @@ export async function GET(request: NextRequest) {
       transactionCount: transactions?.length || 0,
       accountsCount: accounts?.length || 0,
       totalAccountsBalance,
+      investmentsCount: investments?.length || 0,
+      totalInvested,
+      totalInvestmentsCurrent,
+      investmentsProfit,
+      netWorth,
     }
 
     return NextResponse.json({ summary }, { status: 200 })

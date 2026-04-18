@@ -45,6 +45,11 @@ interface Summary {
   transactionCount: number
   accountsCount: number
   totalAccountsBalance: number
+  investmentsCount?: number
+  totalInvested?: number
+  totalInvestmentsCurrent?: number
+  investmentsProfit?: number
+  netWorth?: number
 }
 
 interface Forecast {
@@ -242,14 +247,19 @@ export default function DashboardPage() {
 
           <div className="card p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Patrimônio</p>
+              <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Patrimônio total</p>
               <div className="h-8 w-8 rounded-lg bg-[var(--gold-subtle)] flex items-center justify-center">
                 <Wallet className="h-4 w-4 text-[var(--gold)]" />
               </div>
             </div>
             <p className="text-2xl font-semibold text-[var(--text)] tabular-nums">
-              {formatBRL(summary.totalAccountsBalance)}
+              {formatBRL(summary.netWorth ?? summary.totalAccountsBalance)}
             </p>
+            {summary.totalInvestmentsCurrent ? (
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                {formatBRL(summary.totalInvestmentsCurrent)} aplicados
+              </p>
+            ) : null}
           </div>
         </div>
       )}
