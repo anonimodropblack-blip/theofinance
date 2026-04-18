@@ -1,9 +1,9 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { Anthropic } from '@anthropic-ai/sdk'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const client = new Anthropic()
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 export async function POST(
   request: NextRequest,
@@ -38,45 +38,43 @@ export async function POST(
     const body = await request.json()
     const { content } = body
 
-    // Store user message
     await supabase.from('conversation_messages').insert({
       conversation_id: (await params).id,
       role: 'user',
       content,
     })
 
-    // Get conversation history
     const { data: messages } = await supabase
       .from('conversation_messages')
       .select('role, content')
       .eq('conversation_id', (await params).id)
       .order('created_at', { ascending: true })
 
-    // Build prompt with context
     const systemPrompt = `Você é um assistente financeiro inteligente. Ajude o usuário com análise de gastos, dicas de economia, planejamento de orçamento e investimentos. Seja conciso e prático. Respostas em português do Brasil.`
 
-    // Call Claude API
-    const response = await client.messages.create({
-      model: 'claude-opus-4-7',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages:
-        messages?.map((m) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        })) || [],
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction: systemPrompt,
+      generationConfig: { maxOutputTokens: 500 },
     })
 
-    const assistantMessage = response.content[0].type === 'text' ? response.content[0].text : ''
+    const history = (messages || []).slice(0, -1).map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }))
 
-    // Store assistant message
+    const chat = model.startChat({ history })
+    const result = await chat.sendMessage(content)
+    const assistantMessage = result.response.text()
+    const tokensUsed = result.response.usageMetadata?.candidatesTokenCount ?? 0
+
     const { data: storedMessage } = await supabase
       .from('conversation_messages')
       .insert({
         conversation_id: (await params).id,
         role: 'assistant',
         content: assistantMessage,
-        tokens_used: response.usage.output_tokens,
+        tokens_used: tokensUsed,
       })
       .select()
       .single()
