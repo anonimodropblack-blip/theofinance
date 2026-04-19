@@ -72,7 +72,7 @@ export default function AccountCard({
           <button
             onClick={handleFavoriteToggle}
             disabled={favLoading}
-            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--gold)] hover:bg-[var(--gold-subtle)] transition-colors"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-lg text-[var(--text-subtle)] hover:text-[var(--gold)] hover:bg-[var(--gold-subtle)] transition-colors"
             title={isFavorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}
             aria-label={isFavorite ? 'Remover favorito' : 'Favoritar'}
           >

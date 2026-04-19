@@ -687,7 +687,7 @@ export default function CalendarioPage() {
             <button
               type="button"
               onClick={() => setViewMode('calendar')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs rounded-lg transition-colors ${
                 viewMode === 'calendar'
                   ? 'bg-[var(--color-primary)] text-white'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -698,7 +698,7 @@ export default function CalendarioPage() {
             <button
               type="button"
               onClick={() => setViewMode('list')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-colors ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs rounded-lg transition-colors ${
                 viewMode === 'list'
                   ? 'bg-[var(--color-primary)] text-white'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
@@ -775,7 +775,7 @@ export default function CalendarioPage() {
               <button
                 type="button"
                 onClick={goPrev}
-                className="btn-ghost !p-2"
+                className="btn-ghost inline-flex items-center justify-center h-11 w-11 !p-0"
                 aria-label="Mês anterior"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -783,7 +783,7 @@ export default function CalendarioPage() {
               <button
                 type="button"
                 onClick={goNext}
-                className="btn-ghost !p-2"
+                className="btn-ghost inline-flex items-center justify-center h-11 w-11 !p-0"
                 aria-label="Próximo mês"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -791,7 +791,7 @@ export default function CalendarioPage() {
               <button
                 type="button"
                 onClick={goToday}
-                className="btn-ghost !py-1.5 !px-3 text-xs"
+                className="btn-ghost inline-flex items-center justify-center h-11 !py-0 !px-4 text-xs"
               >
                 Hoje
               </button>
