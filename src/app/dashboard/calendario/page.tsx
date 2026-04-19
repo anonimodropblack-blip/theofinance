@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
+  Building2,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -17,7 +18,7 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react'
-import type { DueBill, FixedAccount, Transaction } from '@/types'
+import type { DueBill, FixedAccount, Imovel, ImovelPagamento, Transaction } from '@/types'
 
 type CalendarEvent =
   | {
@@ -52,6 +53,19 @@ type CalendarEvent =
       rule: NonNullable<Transaction['recurring_rule']>
       txType: Transaction['type']
       raw: Transaction
+    }
+  | {
+      kind: 'imovel'
+      id: string
+      date: string
+      title: string
+      amount: number
+      amountLiquido: number
+      pago: boolean
+      isOverdue: boolean
+      mesReferencia: string
+      raw: Imovel
+      pagamento: ImovelPagamento | null
     }
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -244,6 +258,10 @@ export default function CalendarioPage() {
   const [recurringTransactions, setRecurringTransactions] = useState<Transaction[]>(
     [],
   )
+  const [imoveis, setImoveis] = useState<Imovel[]>([])
+  const [imovelPagamentos, setImovelPagamentos] = useState<
+    Record<string, ImovelPagamento[]>
+  >({})
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -271,20 +289,37 @@ export default function CalendarioPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [billsRes, fixedRes, txRes] = await Promise.all([
+      const [billsRes, fixedRes, txRes, imoveisRes] = await Promise.all([
         fetch('/api/due-bills'),
         fetch('/api/fixed-accounts'),
         fetch('/api/transactions'),
+        fetch('/api/imoveis'),
       ])
       const billsData = await billsRes.json()
       const fixedData = await fixedRes.json()
       const txData = await txRes.json()
+      const imoveisData = await imoveisRes.json()
       setBills(billsData.dueBills || [])
       setFixedAccounts(fixedData.fixedAccounts || [])
       const recurring = (txData.transactions || []).filter(
         (t: Transaction) => t.recurring_rule,
       )
       setRecurringTransactions(recurring)
+      const imoveisList: Imovel[] = imoveisData.imoveis || []
+      setImoveis(imoveisList)
+      const pagamentosMap: Record<string, ImovelPagamento[]> = {}
+      await Promise.all(
+        imoveisList.map(async (im) => {
+          try {
+            const r = await fetch(`/api/imoveis/${im.id}/pagamentos`)
+            const p = await r.json()
+            pagamentosMap[im.id] = p.pagamentos || []
+          } catch {
+            pagamentosMap[im.id] = []
+          }
+        }),
+      )
+      setImovelPagamentos(pagamentosMap)
     } catch (err) {
       console.error('Load calendar error:', err)
     } finally {
@@ -365,8 +400,52 @@ export default function CalendarioPage() {
       }
     }
 
+    const monthRef = isoDate(year, monthIndex, 1)
+    for (const im of imoveis) {
+      if (im.status !== 'alugado') continue
+      if (!im.dia_vencimento) continue
+      const day = clampDayToMonth(year, monthIndex, im.dia_vencimento)
+      const d = isoDate(year, monthIndex, day)
+      const pagamentos = imovelPagamentos[im.id] || []
+      const pagamentoMes = pagamentos.find(
+        (p) => p.mes_referencia?.slice(0, 10) === monthRef,
+      )
+      const pago = pagamentoMes?.status === 'pago'
+      const isOverdue = !pago && d < todayIso
+      const taxa = im.taxa_admin_pct ?? 0
+      const valorBruto = Number(im.valor_aluguel)
+      const valorLiquido = valorBruto * (1 - taxa / 100)
+      const event: CalendarEvent = {
+        kind: 'imovel',
+        id: `imovel-${im.id}-${d}`,
+        date: d,
+        title: im.apelido,
+        amount: valorBruto,
+        amountLiquido: valorLiquido,
+        pago,
+        isOverdue,
+        mesReferencia: monthRef,
+        raw: im,
+        pagamento: pagamentoMes ?? null,
+      }
+      const arr = map.get(d) ?? []
+      arr.push(event)
+      map.set(d, arr)
+    }
+
     return map
-  }, [bills, fixedAccounts, recurringTransactions, monthStart, monthEnd])
+  }, [
+    bills,
+    fixedAccounts,
+    recurringTransactions,
+    imoveis,
+    imovelPagamentos,
+    monthStart,
+    monthEnd,
+    year,
+    monthIndex,
+    todayIso,
+  ])
 
   const monthSummary = useMemo(() => {
     let totalMonth = 0
@@ -391,6 +470,9 @@ export default function CalendarioPage() {
             totalMonth += ev.amount
             fixedExpense += ev.amount
           }
+        }
+        if (ev.kind === 'imovel') {
+          incomeMonth += ev.amount
         }
         if (ev.kind === 'transaction') {
           if (ev.txType === 'income') {
@@ -534,6 +616,52 @@ export default function CalendarioPage() {
       if (res.ok) await load()
     } catch (err) {
       console.error('Delete error:', err)
+    }
+  }
+
+  const handleMarkImovelPago = async (ev: Extract<CalendarEvent, { kind: 'imovel' }>) => {
+    const im = ev.raw
+    const taxa = im.taxa_admin_pct ?? 0
+    const valorBruto = Number(im.valor_aluguel)
+    const valorLiquido = valorBruto * (1 - taxa / 100)
+    const hoje = isoDate(today.getFullYear(), today.getMonth(), today.getDate())
+    try {
+      const res = await fetch(`/api/imoveis/${im.id}/pagamentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mesReferencia: ev.mesReferencia,
+          valorBruto,
+          valorLiquido,
+          dataPagamento: hoje,
+          status: 'pago',
+        }),
+      })
+      if (res.ok) await load()
+    } catch (err) {
+      console.error('Mark imovel pago error:', err)
+    }
+  }
+
+  const handleUnmarkImovelPago = async (ev: Extract<CalendarEvent, { kind: 'imovel' }>) => {
+    const im = ev.raw
+    const taxa = im.taxa_admin_pct ?? 0
+    const valorBruto = Number(im.valor_aluguel)
+    const valorLiquido = valorBruto * (1 - taxa / 100)
+    try {
+      const res = await fetch(`/api/imoveis/${im.id}/pagamentos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mesReferencia: ev.mesReferencia,
+          valorBruto,
+          valorLiquido,
+          status: 'pendente',
+        }),
+      })
+      if (res.ok) await load()
+    } catch (err) {
+      console.error('Unmark imovel pago error:', err)
     }
   }
 
@@ -715,15 +843,26 @@ export default function CalendarioPage() {
                   (e.kind === 'fixed' && e.fixedType === 'income') ||
                   (e.kind === 'transaction' && e.txType === 'income'),
               )
+              const hasImovelPago = events.some(
+                (e) => e.kind === 'imovel' && e.pago,
+              )
+              const hasImovelPendente = events.some(
+                (e) => e.kind === 'imovel' && !e.pago && !e.isOverdue,
+              )
+              const hasImovelAtrasado = events.some(
+                (e) => e.kind === 'imovel' && e.isOverdue,
+              )
               const dayExpense = events.reduce((sum, e) => {
                 if (e.kind === 'bill' && e.status === 'paid') return sum
                 if (e.kind === 'fixed' && e.fixedType === 'income') return sum
                 if (e.kind === 'transaction' && e.txType !== 'expense') return sum
+                if (e.kind === 'imovel') return sum
                 return sum + e.amount
               }, 0)
               const dayIncome = events.reduce((sum, e) => {
                 if (e.kind === 'fixed' && e.fixedType === 'income') return sum + e.amount
                 if (e.kind === 'transaction' && e.txType === 'income') return sum + e.amount
+                if (e.kind === 'imovel') return sum + e.amount
                 return sum
               }, 0)
 
@@ -791,6 +930,24 @@ export default function CalendarioPage() {
                           aria-label="Pago"
                         />
                       )}
+                      {hasImovelAtrasado && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-[var(--color-danger)] ring-1 ring-[var(--color-card)]"
+                          aria-label="Aluguel atrasado"
+                        />
+                      )}
+                      {hasImovelPendente && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)] ring-1 ring-[var(--color-card)]"
+                          aria-label="Aluguel a receber"
+                        />
+                      )}
+                      {hasImovelPago && (
+                        <span
+                          className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)] ring-1 ring-[var(--color-card)]"
+                          aria-label="Aluguel recebido"
+                        />
+                      )}
                     </div>
                   </div>
                 </button>
@@ -803,6 +960,7 @@ export default function CalendarioPage() {
             <LegendDot color="var(--color-gold)" label="Pendente" />
             <LegendDot color="var(--color-primary)" label="Despesa fixa" />
             <LegendDot color="var(--color-success)" label="Receita prevista" />
+            <LegendDot color="var(--color-gold)" label="Aluguel" />
           </div>
         </section>
       ) : (
@@ -866,6 +1024,8 @@ export default function CalendarioPage() {
             setSelectedDay(null)
             openEdit(bill)
           }}
+          onMarkImovelPago={handleMarkImovelPago}
+          onUnmarkImovelPago={handleUnmarkImovelPago}
         />
       )}
 
@@ -1046,6 +1206,8 @@ function DayModal({
   onCreateBill,
   onPayBill,
   onEditBill,
+  onMarkImovelPago,
+  onUnmarkImovelPago,
 }: {
   day: string
   events: CalendarEvent[]
@@ -1053,17 +1215,21 @@ function DayModal({
   onCreateBill: () => void
   onPayBill: (bill: DueBill) => void
   onEditBill: (bill: DueBill) => void
+  onMarkImovelPago: (ev: Extract<CalendarEvent, { kind: 'imovel' }>) => void
+  onUnmarkImovelPago: (ev: Extract<CalendarEvent, { kind: 'imovel' }>) => void
 }) {
   const date = parseIsoDate(day)
   const totalExpense = events.reduce((sum, e) => {
     if (e.kind === 'bill' && e.status === 'paid') return sum
     if (e.kind === 'fixed' && e.fixedType === 'income') return sum
     if (e.kind === 'transaction' && e.txType !== 'expense') return sum
+    if (e.kind === 'imovel') return sum
     return sum + e.amount
   }, 0)
   const totalIncome = events.reduce((sum, e) => {
     if (e.kind === 'fixed' && e.fixedType === 'income') return sum + e.amount
     if (e.kind === 'transaction' && e.txType === 'income') return sum + e.amount
+    if (e.kind === 'imovel') return sum + e.amount
     return sum
   }, 0)
 
@@ -1222,6 +1388,64 @@ function DayModal({
                       {isIncome ? '+ ' : ''}
                       {formatBRL(ev.amount)}
                     </span>
+                  </div>
+                )
+              }
+              if (ev.kind === 'imovel') {
+                const accent = ev.pago
+                  ? 'text-[var(--color-success)]'
+                  : ev.isOverdue
+                    ? 'text-[var(--color-danger)]'
+                    : 'text-[var(--color-gold)]'
+                const subtle = ev.pago
+                  ? 'bg-[var(--color-success-subtle)]'
+                  : ev.isOverdue
+                    ? 'bg-[var(--color-danger-subtle)]'
+                    : 'bg-[var(--color-gold-subtle)]'
+                const statusLabel = ev.pago
+                  ? 'Aluguel recebido'
+                  : ev.isOverdue
+                    ? 'Aluguel atrasado'
+                    : 'Aluguel a receber'
+                return (
+                  <div
+                    key={ev.id}
+                    className="p-3 rounded-xl border border-[var(--color-border)] flex items-center gap-3"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center ${subtle}`}
+                    >
+                      <Building2 className={`w-4 h-4 ${accent}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{ev.title}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {statusLabel}
+                        {ev.raw.inquilino_nome ? ` · ${ev.raw.inquilino_nome}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`text-sm font-semibold ${accent}`}>
+                        + {formatBRL(ev.amount)}
+                      </span>
+                      {ev.pago ? (
+                        <button
+                          type="button"
+                          onClick={() => onUnmarkImovelPago(ev)}
+                          className="text-[11px] px-2 py-1 rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]"
+                        >
+                          Desmarcar
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onMarkImovelPago(ev)}
+                          className="text-[11px] px-2 py-1 rounded-md bg-[var(--color-success)] text-white hover:opacity-90"
+                        >
+                          Marcar como pago
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )
               }
