@@ -19,6 +19,8 @@ import {
   LogOut,
   Menu,
   X,
+  Gauge,
+  Hourglass,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -37,8 +39,10 @@ const NAV: NavItem[] = [
   { name: 'Dívidas', href: '/dashboard/dividas', icon: CircleDollarSign, group: 'financas' },
   { name: 'Investimentos', href: '/dashboard/investimentos', icon: TrendingUp, group: 'financas' },
   { name: 'Metas', href: '/dashboard/objetivos', icon: Target, group: 'planejamento' },
+  { name: 'Planejamento de vida', href: '/dashboard/planejamento', icon: Hourglass, group: 'planejamento' },
   { name: 'Calendário', href: '/dashboard/calendario', icon: CalendarDays, group: 'planejamento' },
   { name: 'Relatórios', href: '/dashboard/relatorios', icon: BarChart3, group: 'planejamento' },
+  { name: 'Score financeiro', href: '/dashboard/score', icon: Gauge, group: 'planejamento' },
   { name: 'Insights', href: '/dashboard/insights', icon: TrendingUp, group: 'planejamento' },
   { name: 'Chat IA', href: '/dashboard/chat', icon: MessageCircle, group: 'sistema' },
   { name: 'Lixeira', href: '/dashboard/lixeira', icon: Trash2, group: 'sistema' },
@@ -69,13 +73,23 @@ export default function DashboardLayout({
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
     )
 
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
         router.push('/auth/login')
-      } else {
-        setUser(data.user)
-        setLoading(false)
+        return
       }
+      setUser(data.user)
+      try {
+        const res = await fetch('/api/onboarding')
+        if (res.ok) {
+          const j = await res.json()
+          if (!j.onboarded) {
+            router.push('/onboarding')
+            return
+          }
+        }
+      } catch {}
+      setLoading(false)
     })
   }, [router])
 
