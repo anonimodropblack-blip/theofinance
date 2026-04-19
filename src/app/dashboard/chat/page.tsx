@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import Link from 'next/link'
+import { Plus, Send, MessageCircle } from 'lucide-react'
 import type { Conversation, ConversationMessage } from '@/types'
 
 export default function ChatPage() {
@@ -84,43 +84,49 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex flex-col">
-      <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">Chat IA</h1>
-          <Link href="/dashboard" className="text-slate-400 hover:text-white">
-            ← Voltar
-          </Link>
-        </div>
-      </header>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Chat IA</h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">Converse com a IA sobre suas finanças.</p>
+      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-64 bg-slate-800 border-r border-slate-700 flex flex-col">
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="m-4 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium"
-          >
-            + Nova Conversa
-          </button>
-          <div className="flex-1 overflow-y-auto space-y-2 px-2">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => handleSelectConv(conv)}
-                className={`w-full text-left px-3 py-2 rounded transition-colors ${
-                  activeConv?.id === conv.id
-                    ? 'bg-rose-600 text-white'
-                    : 'hover:bg-slate-700 text-slate-400'
-                }`}
-              >
-                <p className="truncate">{conv.title}</p>
-              </button>
-            ))}
+      <div className="card overflow-hidden flex h-[70vh]">
+        {/* Sidebar de conversas */}
+        <div className="w-64 border-r border-[var(--border)] flex flex-col bg-[var(--bg)]">
+          <div className="p-3 border-b border-[var(--border)]">
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-3 py-2 text-sm font-medium transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Nova conversa
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {conversations.length === 0 ? (
+              <p className="text-xs text-[var(--text-subtle)] text-center py-6 px-2">
+                Nenhuma conversa ainda
+              </p>
+            ) : (
+              conversations.map((conv) => (
+                <button
+                  key={conv.id}
+                  onClick={() => handleSelectConv(conv)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    activeConv?.id === conv.id
+                      ? 'bg-[var(--primary-subtle)] text-[var(--primary)] font-medium'
+                      : 'text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text)]'
+                  }`}
+                >
+                  <p className="truncate">{conv.title}</p>
+                </button>
+              ))
+            )}
           </div>
         </div>
 
-        {/* Chat Area */}
+        {/* Área do chat */}
         <div className="flex-1 flex flex-col">
           {activeConv ? (
             <>
@@ -131,10 +137,10 @@ export default function ChatPage() {
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-md px-4 py-2 rounded-lg ${
+                      className={`max-w-md px-4 py-2.5 rounded-2xl text-sm ${
                         msg.role === 'user'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-slate-700 text-slate-100'
+                          ? 'bg-[var(--primary)] text-white rounded-br-sm'
+                          : 'bg-[var(--bg)] text-[var(--text)] border border-[var(--border)] rounded-bl-sm'
                       }`}
                     >
                       {msg.content}
@@ -144,7 +150,7 @@ export default function ChatPage() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-700">
+              <form onSubmit={handleSendMessage} className="p-4 border-t border-[var(--border)]">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -152,49 +158,48 @@ export default function ChatPage() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Faça uma pergunta..."
                     disabled={loading}
-                    className="flex-1 px-4 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500 disabled:opacity-50"
+                    className="input-base flex-1 disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
                   >
+                    <Send className="h-4 w-4" />
                     {loading ? 'Enviando...' : 'Enviar'}
                   </button>
                 </div>
               </form>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400">
-              Selecione uma conversa ou crie uma nova
+            <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)] p-8 text-center">
+              <div className="h-12 w-12 rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center mb-4">
+                <MessageCircle className="h-6 w-6" />
+              </div>
+              <p className="text-sm font-medium text-[var(--text)]">Selecione uma conversa</p>
+              <p className="text-xs mt-1">ou crie uma nova para começar</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* New Conversation Modal */}
+      {/* Modal nova conversa */}
       {showNewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold text-white mb-4">Nova Conversa</h2>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold text-[var(--text)] mb-4">Nova conversa</h2>
             <input
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Assunto da conversa"
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded text-white mb-4"
+              className="input-base w-full mb-4"
             />
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowNewModal(false)}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded"
-              >
+              <button onClick={() => setShowNewModal(false)} className="btn-ghost flex-1">
                 Cancelar
               </button>
-              <button
-                onClick={handleNewConv}
-                className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded"
-              >
+              <button onClick={handleNewConv} className="btn-primary flex-1">
                 Criar
               </button>
             </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { Pencil, Trash2 } from 'lucide-react'
 import type { FixedAccount } from '@/types'
 
 interface FixedAccountCardProps {
@@ -18,15 +19,6 @@ const frequencyLabels: Record<string, string> = {
   yearly: 'Anual',
 }
 
-const frequencyColors: Record<string, string> = {
-  weekly: 'bg-blue-900/20 border-blue-500/30',
-  biweekly: 'bg-purple-900/20 border-purple-500/30',
-  monthly: 'bg-pink-900/20 border-pink-500/30',
-  bimonthly: 'bg-orange-900/20 border-orange-500/30',
-  quarterly: 'bg-green-900/20 border-green-500/30',
-  yearly: 'bg-indigo-900/20 border-indigo-500/30',
-}
-
 export default function FixedAccountCard({
   account,
   onEdit,
@@ -40,69 +32,63 @@ export default function FixedAccountCard({
     }).format(value)
   }
 
+  const isIncome = account.type === 'income'
+
   return (
-    <div
-      className={`p-4 border rounded-lg transition-opacity ${
-        account.is_active
-          ? 'bg-slate-800/50 border-slate-700'
-          : 'bg-slate-800/30 border-slate-700/50 opacity-60'
-      }`}
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-white">{account.name}</h3>
+    <div className={`card p-4 ${!account.is_active ? 'opacity-60' : ''}`}>
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-semibold text-[var(--text)] truncate">{account.name}</h3>
             {account.category && (
-              <span className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">
+              <span className="text-xs bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-full">
                 {account.category}
               </span>
             )}
           </div>
-          <p className="text-xs text-slate-400">{account.description}</p>
+          {account.description && (
+            <p className="text-xs text-[var(--text-subtle)] truncate">{account.description}</p>
+          )}
         </div>
 
         <button
           onClick={() => onToggle(account.id, !account.is_active)}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors shrink-0 ${
             account.is_active
-              ? 'bg-green-900/30 text-green-300 hover:bg-green-900/50'
-              : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              ? 'bg-[var(--success-subtle)] text-[var(--success)] hover:opacity-80'
+              : 'bg-[var(--bg)] text-[var(--text-subtle)] border border-[var(--border)] hover:text-[var(--text)]'
           }`}
         >
           {account.is_active ? 'Ativo' : 'Inativo'}
         </button>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <div className="text-2xl font-bold text-rose-400">
+          <div className={`text-2xl font-semibold tabular-nums ${isIncome ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
             {formatCurrency(account.amount)}
           </div>
-          <div
-            className={`px-2 py-1 rounded-full text-xs font-medium border ${
-              frequencyColors[account.frequency]
-            }`}
-          >
+          <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--primary-subtle)] text-[var(--primary)]">
             {frequencyLabels[account.frequency]}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <button
             onClick={() => onEdit(account)}
-            className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs transition-colors"
+            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
+            aria-label="Editar"
           >
-            Editar
+            <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => {
-              if (confirm('Tem certeza?')) {
-                onDelete(account.id)
-              }
+              if (confirm('Tem certeza?')) onDelete(account.id)
             }}
-            className="px-3 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded text-xs transition-colors"
+            className="p-1.5 rounded-lg text-[var(--text-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-subtle)] transition-colors"
+            aria-label="Excluir"
           >
-            Deletar
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>

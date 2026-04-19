@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
+import { Plus, Wallet } from 'lucide-react'
 import AccountCard from '@/components/AccountCard'
 import type { Account } from '@/types'
 
@@ -65,53 +66,50 @@ export default function AccountsPage() {
     }
   }
 
-  const typeColors = {
-    checking: 'bg-blue-600',
-    savings: 'bg-green-600',
-    credit: 'bg-red-600',
-    cash: 'bg-amber-600',
-  }
-
-  const typeLabels = {
-    checking: 'Conta Corrente',
-    savings: 'Poupança',
-    credit: 'Cartão de Crédito',
-    cash: 'Dinheiro',
-  }
-
   if (loading) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-white">Contas</h2>
-        <p className="text-slate-400">Carregando...</p>
+      <div className="space-y-8 max-w-7xl mx-auto">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Contas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Carregando...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Contas</h2>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Contas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Gerencie suas contas bancárias, cartões e dinheiro.</p>
+        </div>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 text-sm font-medium transition-colors"
         >
-          + Nova Conta
+          <Plus className="h-4 w-4" />
+          Nova conta
         </button>
       </div>
 
       {error && (
-        <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-          <p className="text-red-200">{error}</p>
+        <div className="p-4 rounded-xl bg-[var(--danger-subtle)] border border-[var(--danger)]/30">
+          <p className="text-sm text-[var(--danger)]">{error}</p>
         </div>
       )}
 
       {accounts.length === 0 ? (
-        <div className="p-8 text-center bg-slate-800 border border-slate-700 rounded-lg">
-          <p className="text-slate-400">Nenhuma conta criada ainda</p>
+        <div className="card p-12 text-center">
+          <div className="h-12 w-12 mx-auto rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center mb-4">
+            <Wallet className="h-6 w-6" />
+          </div>
+          <p className="text-[var(--text)] font-medium">Nenhuma conta criada ainda</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Crie sua primeira conta para começar.</p>
           <button
             onClick={() => setShowModal(true)}
-            className="mt-4 text-rose-500 hover:text-rose-400"
+            className="mt-4 text-[var(--primary)] hover:text-[var(--primary-hover)] text-sm font-medium"
           >
             Criar primeira conta
           </button>
@@ -127,9 +125,7 @@ export default function AccountsPage() {
               balance={account.balance || 0}
               color={account.color}
               currency={account.currency || 'BRL'}
-              onFavoriteToggle={() => {
-                // Refresh favorites on toggle
-              }}
+              onFavoriteToggle={() => {}}
             />
           ))}
         </div>
@@ -137,108 +133,86 @@ export default function AccountsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Nova Conta
-            </h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-xl font-semibold text-[var(--text)] mb-4">Nova conta</h3>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Nome
-                </label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Nome</label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-rose-500"
+                  className="input-base w-full"
                   placeholder="Minha conta"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Tipo
-                </label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Tipo</label>
                 <select
                   value={formData.type}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      type: e.target.value as any,
-                    })
-                  }
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-rose-500"
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                  className="input-base w-full"
                 >
-                  <option value="checking">Conta Corrente</option>
+                  <option value="checking">Conta corrente</option>
                   <option value="savings">Poupança</option>
-                  <option value="credit">Cartão de Crédito</option>
+                  <option value="credit">Cartão de crédito</option>
                   <option value="cash">Dinheiro</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Cor
-                </label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Cor</label>
                 <div className="flex gap-2">
-                  {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6'].map(
-                    (color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={`w-8 h-8 rounded-full border-2 ${
-                          formData.color === color
-                            ? 'border-white'
-                            : 'border-transparent'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      ></button>
-                    )
-                  )}
+                  {['#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color })}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        formData.color === color
+                          ? 'border-[var(--text)] scale-110'
+                          : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
                 </div>
               </div>
 
-              <label className="flex items-start gap-3 p-3 rounded-lg bg-slate-700/30 border border-slate-600 cursor-pointer">
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-[var(--bg)] border border-[var(--border)] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formData.is_private}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_private: e.target.checked })
-                  }
-                  className="mt-0.5"
+                  onChange={(e) => setFormData({ ...formData, is_private: e.target.checked })}
+                  className="mt-0.5 accent-[var(--primary)]"
                 />
                 <div>
-                  <p className="text-sm font-medium text-white">Conta privada</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-sm font-medium text-[var(--text)]">Conta privada</p>
+                  <p className="text-xs text-[var(--text-subtle)] mt-0.5">
                     Não aparece na visão compartilhada do casal.
                   </p>
                 </div>
               </label>
 
               {error && (
-                <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-200">{error}</p>
+                <div className="p-3 rounded-xl bg-[var(--danger-subtle)] border border-[var(--danger)]/30">
+                  <p className="text-sm text-[var(--danger)]">{error}</p>
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  className="btn-ghost flex-1"
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
-                >
+                <button type="submit" className="btn-primary flex-1">
                   Criar
                 </button>
               </div>

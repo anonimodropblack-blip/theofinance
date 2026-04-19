@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
-import Link from 'next/link'
+import { Plus, CircleDollarSign } from 'lucide-react'
 import FixedAccountCard from '@/components/FixedAccountCard'
 import type { FixedAccount } from '@/types'
 
@@ -143,54 +143,28 @@ export default function FixedAccountsPage() {
     .filter((a) => a.frequency === 'monthly')
     .reduce((sum, a) => sum + a.amount, 0)
 
+  const formatBRL = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="space-y-8 max-w-7xl mx-auto">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Contas fixas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Carregando...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Contas Fixas</h1>
-            <p className="text-sm text-slate-400">Gerencie suas despesas recorrentes</p>
-          </div>
-          <Link href="/dashboard" className="text-slate-400 hover:text-white">
-            ← Voltar
-          </Link>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Contas fixas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Gerencie suas despesas e receitas recorrentes.</p>
         </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        {/* Summary */}
-        {activeAccounts.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">TOTAL MENSAL</p>
-              <p className="text-2xl font-bold text-rose-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(totalMonthly)}
-              </p>
-            </div>
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">CONTAS ATIVAS</p>
-              <p className="text-2xl font-bold text-white">{activeAccounts.length}</p>
-            </div>
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">TOTAL DE CONTAS</p>
-              <p className="text-2xl font-bold text-white">{accounts.length}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Create Button */}
         <button
           onClick={() => {
             setEditingAccount(null)
@@ -205,154 +179,163 @@ export default function FixedAccountsPage() {
             })
             setShowModal(true)
           }}
-          className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 text-sm font-medium transition-colors"
         >
-          + Nova Conta Fixa
+          <Plus className="h-4 w-4" />
+          Nova conta fixa
         </button>
+      </div>
 
-        {/* Accounts List */}
-        {accounts.length === 0 ? (
-          <div className="p-8 text-center bg-slate-800/50 border border-slate-700 rounded-lg">
-            <p className="text-slate-400">Nenhuma conta fixa criada ainda</p>
-            <p className="text-sm text-slate-500 mt-2">
-              Crie uma conta fixa para rastrear suas despesas recorrentes
-            </p>
+      {/* Summary */}
+      {activeAccounts.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Total mensal</p>
+            <p className="text-2xl font-semibold text-[var(--danger)] tabular-nums mt-2">{formatBRL(totalMonthly)}</p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {accounts.map((account) => (
-              <FixedAccountCard
-                key={account.id}
-                account={account}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onToggle={handleToggle}
-              />
-            ))}
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Contas ativas</p>
+            <p className="text-2xl font-semibold text-[var(--text)] tabular-nums mt-2">{activeAccounts.length}</p>
           </div>
-        )}
-
-        {/* Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold text-white mb-4">
-                {editingAccount ? 'Editar Conta Fixa' : 'Nova Conta Fixa'}
-              </h2>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Nome*</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500"
-                    placeholder="Ex: Aluguel, Internet"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Valor*</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Tipo*</label>
-                  <select
-                    value={formData.type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, type: e.target.value as 'expense' | 'income' })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                  >
-                    <option value="expense">Despesa recorrente</option>
-                    <option value="income">Receita recorrente</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Frequência*</label>
-                  <select
-                    value={formData.frequency}
-                    onChange={(e) =>
-                      setFormData({ ...formData, frequency: e.target.value as any })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                  >
-                    <option value="weekly">Semanal</option>
-                    <option value="biweekly">Quinzenal</option>
-                    <option value="monthly">Mensal</option>
-                    <option value="bimonthly">Bimensal</option>
-                    <option value="quarterly">Trimestral</option>
-                    <option value="yearly">Anual</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Dia do Vencimento</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500"
-                    placeholder="1-31"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Categoria</label>
-                  <input
-                    type="text"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500"
-                    placeholder="Ex: Moradia, Serviços"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Observações</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white placeholder-slate-500"
-                    placeholder="Adicione notas opcionais"
-                    rows={2}
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors font-medium"
-                  >
-                    {editingAccount ? 'Salvar' : 'Criar'}
-                  </button>
-                </div>
-              </form>
-            </div>
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Total de contas</p>
+            <p className="text-2xl font-semibold text-[var(--text)] tabular-nums mt-2">{accounts.length}</p>
           </div>
-        )}
-      </main>
+        </div>
+      )}
+
+      {/* Accounts List */}
+      {accounts.length === 0 ? (
+        <div className="card p-12 text-center">
+          <div className="h-12 w-12 mx-auto rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center mb-4">
+            <CircleDollarSign className="h-6 w-6" />
+          </div>
+          <p className="text-[var(--text)] font-medium">Nenhuma conta fixa criada ainda</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Crie uma conta fixa para rastrear suas despesas recorrentes.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {accounts.map((account) => (
+            <FixedAccountCard
+              key={account.id}
+              account={account}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onToggle={handleToggle}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold text-[var(--text)] mb-5">
+              {editingAccount ? 'Editar conta fixa' : 'Nova conta fixa'}
+            </h2>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Nome</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="Ex: Aluguel, Internet"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Valor (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Tipo</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as 'expense' | 'income' })}
+                  className="input-base w-full"
+                >
+                  <option value="expense">Despesa recorrente</option>
+                  <option value="income">Receita recorrente</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Frequência</label>
+                <select
+                  value={formData.frequency}
+                  onChange={(e) => setFormData({ ...formData, frequency: e.target.value as any })}
+                  className="input-base w-full"
+                >
+                  <option value="weekly">Semanal</option>
+                  <option value="biweekly">Quinzenal</option>
+                  <option value="monthly">Mensal</option>
+                  <option value="bimonthly">Bimensal</option>
+                  <option value="quarterly">Trimestral</option>
+                  <option value="yearly">Anual</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Dia do vencimento</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formData.due_date}
+                  onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="1-31"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Categoria</label>
+                <input
+                  type="text"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="Ex: Moradia, Serviços"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Observações</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="input-base w-full resize-none"
+                  placeholder="Adicione notas opcionais"
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)} className="btn-ghost flex-1">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  {editingAccount ? 'Salvar' : 'Criar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

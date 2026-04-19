@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
+import { Plus, Tag } from 'lucide-react'
 
 interface Category {
   id: string
@@ -20,7 +21,7 @@ export default function SettingsPage() {
   const [formData, setFormData] = useState({
     name: '',
     color: '#6b7280',
-    icon: '📌',
+    icon: 'tag',
   })
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function SettingsPage() {
       }
 
       setCategories([...categories, data.category])
-      setFormData({ name: '', color: '#6b7280', icon: '📌' })
+      setFormData({ name: '', color: '#6b7280', icon: 'tag' })
       setShowModal(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -75,77 +76,83 @@ export default function SettingsPage() {
   const filteredCategories = categories.filter((c) => c.type === tab)
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Configurações</h2>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Configurações</h1>
+        <p className="text-sm text-[var(--text-muted)] mt-1">Gerencie categorias de receitas e despesas.</p>
+      </div>
 
       {error && (
-        <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-          <p className="text-red-200">{error}</p>
+        <div className="p-4 rounded-xl bg-[var(--danger-subtle)] border border-[var(--danger)]/30">
+          <p className="text-sm text-[var(--danger)]">{error}</p>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-slate-700">
+      <div className="flex gap-1 p-1 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border)] w-fit">
         <button
           onClick={() => setTab('expense')}
-          className={`pb-2 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === 'expense'
-              ? 'text-rose-500 border-b-2 border-rose-500'
-              : 'text-slate-400 hover:text-slate-300'
+              ? 'bg-[var(--primary)] text-white shadow-sm'
+              : 'text-[var(--text-muted)] hover:text-[var(--text)]'
           }`}
         >
-          Categorias de Despesa
+          Despesas
         </button>
         <button
           onClick={() => setTab('income')}
-          className={`pb-2 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === 'income'
-              ? 'text-rose-500 border-b-2 border-rose-500'
-              : 'text-slate-400 hover:text-slate-300'
+              ? 'bg-[var(--primary)] text-white shadow-sm'
+              : 'text-[var(--text-muted)] hover:text-[var(--text)]'
           }`}
         >
-          Categorias de Receita
+          Receitas
         </button>
       </div>
 
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white">
-          {tab === 'expense' ? 'Despesas' : 'Receitas'}
+        <h3 className="text-lg font-semibold text-[var(--text)]">
+          Categorias de {tab === 'expense' ? 'despesa' : 'receita'}
         </h3>
         <button
           onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 text-sm font-medium transition-colors"
         >
-          + Nova Categoria
+          <Plus className="h-4 w-4" />
+          Nova categoria
         </button>
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Carregando...</p>
+        <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
       ) : filteredCategories.length === 0 ? (
-        <div className="p-8 text-center bg-slate-800 border border-slate-700 rounded-lg">
-          <p className="text-slate-400">Nenhuma categoria</p>
+        <div className="card p-12 text-center">
+          <div className="h-12 w-12 mx-auto rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center mb-4">
+            <Tag className="h-6 w-6" />
+          </div>
+          <p className="text-[var(--text)] font-medium">Nenhuma categoria</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Crie uma categoria para começar.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCategories.map((category) => (
-            <div
-              key={category.id}
-              className="p-4 bg-slate-800 border border-slate-700 rounded-lg"
-            >
+            <div key={category.id} className="card p-4">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">{category.icon}</span>
-                <div>
-                  <p className="font-medium text-white">{category.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: category.color }}
-                    ></div>
-                    <span className="text-xs text-slate-400">
-                      {category.color}
-                    </span>
-                  </div>
+                <div
+                  className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: `${category.color}20` }}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: category.color }}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--text)] truncate">{category.name}</p>
+                  <p className="text-xs text-[var(--text-subtle)]">{category.color}</p>
                 </div>
               </div>
             </div>
@@ -155,96 +162,57 @@ export default function SettingsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-xl font-semibold text-white mb-4">
-              Nova Categoria
-            </h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-xl font-semibold text-[var(--text)] mb-4">Nova categoria</h3>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Nome
-                </label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Nome</label>
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-rose-500"
+                  className="input-base w-full"
                   placeholder="Ex: Supermercado"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Ícone
-                </label>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-2">Cor</label>
                 <div className="flex gap-2 flex-wrap">
-                  {['shopping-cart','utensils','car','home','pill','book','film','plane'].map(
-                    (emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() =>
-                          setFormData({ ...formData, icon: emoji })
-                        }
-                        className={`w-8 h-8 rounded text-lg ${
-                          formData.icon === emoji
-                            ? 'bg-rose-600'
-                            : 'bg-slate-700 hover:bg-slate-600'
-                        }`}
-                      >
-                        {emoji}
-                      </button>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Cor
-                </label>
-                <div className="flex gap-2">
-                  {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'].map(
-                    (color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, color })}
-                        className={`w-8 h-8 rounded-full border-2 ${
-                          formData.color === color
-                            ? 'border-white'
-                            : 'border-transparent'
-                        }`}
-                        style={{ backgroundColor: color }}
-                      ></button>
-                    )
-                  )}
+                  {['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6'].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, color })}
+                      className={`w-9 h-9 rounded-full border-2 transition-transform ${
+                        formData.color === color
+                          ? 'border-[var(--text)] scale-110'
+                          : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
                 </div>
               </div>
 
               {error && (
-                <div className="p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-                  <p className="text-sm text-red-200">{error}</p>
+                <div className="p-3 rounded-xl bg-[var(--danger-subtle)] border border-[var(--danger)]/30">
+                  <p className="text-sm text-[var(--danger)]">{error}</p>
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                  className="btn-ghost flex-1"
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
-                >
+                <button type="submit" className="btn-primary flex-1">
                   Criar
                 </button>
               </div>

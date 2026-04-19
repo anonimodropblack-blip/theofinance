@@ -1,5 +1,6 @@
 'use client'
 
+import { Pencil, Trash2 } from 'lucide-react'
 import type { DueBill } from '@/types'
 
 interface DueBillCardProps {
@@ -9,11 +10,11 @@ interface DueBillCardProps {
   onDelete: (id: string) => void
 }
 
-const statusStyles = {
-  pending: 'bg-yellow-900/20 border-yellow-500/30 text-yellow-300',
-  paid: 'bg-green-900/20 border-green-500/30 text-green-300',
-  overdue: 'bg-red-900/20 border-red-500/30 text-red-300',
-  cancelled: 'bg-slate-700 border-slate-600 text-slate-400',
+const statusStyles: Record<string, string> = {
+  pending: 'bg-[var(--gold-subtle)] text-[var(--gold)]',
+  paid: 'bg-[var(--success-subtle)] text-[var(--success)]',
+  overdue: 'bg-[var(--danger-subtle)] text-[var(--danger)]',
+  cancelled: 'bg-[var(--bg)] text-[var(--text-subtle)] border border-[var(--border)]',
 }
 
 const statusLabels = {
@@ -54,59 +55,59 @@ export default function DueBillCard({
     : `Venceu há ${Math.abs(daysUntilDue)} dias`
 
   return (
-    <div className={`p-4 border rounded-lg ${statusStyles[bill.status]}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <h3 className="font-semibold text-white mb-1">{bill.title}</h3>
+    <div className="card p-4">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-[var(--text)] mb-1 truncate">{bill.title}</h3>
           {bill.category && (
-            <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded inline-block">
+            <span className="text-xs bg-[var(--bg)] text-[var(--text-muted)] border border-[var(--border)] px-2 py-0.5 rounded-full inline-block">
               {bill.category}
             </span>
           )}
         </div>
-        <span className={`text-xs px-2 py-1 rounded font-medium ${statusStyles[bill.status]}`}>
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${statusStyles[bill.status]}`}>
           {statusLabels[bill.status]}
         </span>
       </div>
 
       {bill.description && (
-        <p className="text-xs text-slate-400 mb-3">{bill.description}</p>
+        <p className="text-xs text-[var(--text-subtle)] mb-3">{bill.description}</p>
       )}
 
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-2xl font-bold text-white">{formatCurrency(bill.amount)}</p>
-          <p className="text-xs text-slate-400 mt-1">
-            {formatDate(bill.due_date)} • {daysText}
+          <p className="text-2xl font-semibold text-[var(--text)] tabular-nums">{formatCurrency(bill.amount)}</p>
+          <p className="text-xs text-[var(--text-subtle)] mt-1">
+            {formatDate(bill.due_date)} · {daysText}
           </p>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         {bill.status === 'pending' && (
           <button
             onClick={() => onMarkAsPaid(bill)}
-            className="flex-1 px-3 py-2 bg-green-900/30 hover:bg-green-900/50 text-green-300 rounded text-sm font-medium transition-colors"
+            className="flex-1 inline-flex items-center justify-center rounded-xl bg-[var(--success-subtle)] hover:bg-[var(--success)] hover:text-white text-[var(--success)] px-3 py-2 text-sm font-medium transition-colors"
           >
-            Marcar Pago
+            Marcar pago
           </button>
         )}
         <button
           onClick={() => onEdit(bill)}
-          className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm transition-colors"
+          className="p-2 rounded-lg text-[var(--text-subtle)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
+          aria-label="Editar"
         >
-          Editar
+          <Pencil className="h-4 w-4" />
         </button>
         <button
           onClick={() => {
-            if (confirm('Tem certeza?')) {
-              onDelete(bill.id)
-            }
+            if (confirm('Tem certeza?')) onDelete(bill.id)
           }}
-          className="px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 rounded text-sm transition-colors"
+          className="p-2 rounded-lg text-[var(--text-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-subtle)] transition-colors"
+          aria-label="Excluir"
         >
-          Deletar
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { Plus, Target } from 'lucide-react'
 import SavingsGoalCard from '@/components/SavingsGoalCard'
 import type { SavingsGoal } from '@/types'
 
@@ -61,7 +61,7 @@ export default function SavingsGoalsPage() {
           name: '',
           target_amount: '',
           icon: 'target',
-          color: '#ec4899',
+          color: '#3B82F6',
           deadline: '',
         })
         setShowCreateModal(false)
@@ -87,7 +87,6 @@ export default function SavingsGoalsPage() {
       })
 
       if (res.ok) {
-        // Update goal with new amount
         const newAmount = Math.min(
           selectedGoal.current_amount + amount,
           selectedGoal.target_amount
@@ -129,59 +128,28 @@ export default function SavingsGoalsPage() {
   const totalTarget = goals.reduce((sum, g) => sum + g.target_amount, 0)
   const totalAccumulated = goals.reduce((sum, g) => sum + g.current_amount, 0)
 
+  const formatBRL = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="space-y-8 max-w-7xl mx-auto">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Caixinhas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Carregando...</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
+    <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="border-b border-slate-700 bg-slate-800/50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Caixinhas</h1>
-            <p className="text-sm text-slate-400">Alcance suas metas financeiras</p>
-          </div>
-          <Link href="/dashboard" className="text-slate-400 hover:text-white">
-            ← Voltar
-          </Link>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-[var(--text)]">Caixinhas</h1>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Alcance suas metas financeiras passo a passo.</p>
         </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-        {/* Summary */}
-        {goals.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">META TOTAL</p>
-              <p className="text-2xl font-bold text-white">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(totalTarget)}
-              </p>
-            </div>
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">ACUMULADO</p>
-              <p className="text-2xl font-bold text-green-400">
-                {new Intl.NumberFormat('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                }).format(totalAccumulated)}
-              </p>
-            </div>
-            <div className="p-6 bg-slate-800 border border-slate-700 rounded-lg">
-              <p className="text-slate-400 text-sm mb-2">CAIXINHAS</p>
-              <p className="text-2xl font-bold text-white">{goals.length}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Create Button */}
         <button
           onClick={() => {
             setSelectedGoal(null)
@@ -189,203 +157,204 @@ export default function SavingsGoalsPage() {
               name: '',
               target_amount: '',
               icon: 'target',
-              color: '#ec4899',
+              color: '#3B82F6',
               deadline: '',
             })
             setShowCreateModal(true)
           }}
-          className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium transition-colors"
+          className="inline-flex items-center gap-2 rounded-xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 text-sm font-medium transition-colors"
         >
-          + Nova Caixinha
+          <Plus className="h-4 w-4" />
+          Nova caixinha
         </button>
+      </div>
 
-        {/* Goals List */}
-        {goals.length === 0 ? (
-          <div className="p-8 text-center bg-slate-800/50 border border-slate-700 rounded-lg">
-            <p className="text-slate-400">Nenhuma caixinha criada ainda</p>
-            <p className="text-sm text-slate-500 mt-2">
-              Crie uma caixinha para rastrear suas metas financeiras
-            </p>
+      {/* Summary */}
+      {goals.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Meta total</p>
+            <p className="text-2xl font-semibold text-[var(--text)] tabular-nums mt-2">{formatBRL(totalTarget)}</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {goals.map((goal) => (
-              <SavingsGoalCard
-                key={goal.id}
-                goal={goal}
-                onContribute={(g) => {
-                  setSelectedGoal(g)
-                  setShowContributeModal(true)
-                }}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))}
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Acumulado</p>
+            <p className="text-2xl font-semibold text-[var(--success)] tabular-nums mt-2">{formatBRL(totalAccumulated)}</p>
           </div>
-        )}
+          <div className="card p-5">
+            <p className="text-xs uppercase tracking-wider text-[var(--text-subtle)]">Caixinhas</p>
+            <p className="text-2xl font-semibold text-[var(--text)] tabular-nums mt-2">{goals.length}</p>
+          </div>
+        </div>
+      )}
 
-        {/* Create Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold text-white mb-4">
-                {selectedGoal ? 'Editar Caixinha' : 'Nova Caixinha'}
-              </h2>
+      {/* Goals List */}
+      {goals.length === 0 ? (
+        <div className="card p-12 text-center">
+          <div className="h-12 w-12 mx-auto rounded-xl bg-[var(--primary-subtle)] text-[var(--primary)] flex items-center justify-center mb-4">
+            <Target className="h-6 w-6" />
+          </div>
+          <p className="text-[var(--text)] font-medium">Nenhuma caixinha criada ainda</p>
+          <p className="text-sm text-[var(--text-muted)] mt-1">Crie uma caixinha para rastrear suas metas financeiras.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {goals.map((goal) => (
+            <SavingsGoalCard
+              key={goal.id}
+              goal={goal}
+              onContribute={(g) => {
+                setSelectedGoal(g)
+                setShowContributeModal(true)
+              }}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
 
-              <form onSubmit={handleCreateSubmit} className="space-y-4">
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold text-[var(--text)] mb-5">
+              {selectedGoal ? 'Editar caixinha' : 'Nova caixinha'}
+            </h2>
+
+            <form onSubmit={handleCreateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Nome</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="Ex: Férias, Carro novo"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Meta (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.target_amount}
+                  onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
+                  className="input-base w-full"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-2">Nome*</label>
+                  <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Ícone</label>
+                  <select
+                    value={formData.icon}
+                    onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
+                    className="input-base w-full"
+                  >
+                    <option value="target">Meta</option>
+                    <option value="plane">Férias</option>
+                    <option value="house">Casa</option>
+                    <option value="car">Carro</option>
+                    <option value="book">Educação</option>
+                    <option value="gem">Luxo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Cor</label>
                   <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                    placeholder="Ex: Férias, Carro novo"
-                    required
+                    type="color"
+                    value={formData.color}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    className="w-full h-[42px] rounded-xl cursor-pointer border border-[var(--border)] bg-[var(--bg-elevated)] p-1"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Meta*</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.target_amount}
-                    onChange={(e) => setFormData({ ...formData, target_amount: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Prazo (opcional)</label>
+                <input
+                  type="date"
+                  value={formData.deadline}
+                  onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                  className="input-base w-full"
+                />
+              </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-2">Ícone</label>
-                    <select
-                      value={formData.icon}
-                      onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                    >
-                      <option value="target">Meta</option>
-                      <option value="plane">Férias</option>
-                      <option value="house">Casa</option>
-                      <option value="car">Carro</option>
-                      <option value="book">Educação</option>
-                      <option value="gem">Luxo</option>
-                      <option value="🎮">🎮 Entretenimento</option>
-                      <option value="❤️">❤️ Família</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm text-slate-400 mb-2">Cor</label>
-                    <input
-                      type="color"
-                      value={formData.color}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                      className="w-full h-10 rounded cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Prazo (opcional)</label>
-                  <input
-                    type="date"
-                    value={formData.deadline}
-                    onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded transition-colors font-medium"
-                  >
-                    {selectedGoal ? 'Salvar' : 'Criar'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-ghost flex-1">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  {selectedGoal ? 'Salvar' : 'Criar'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Contribute Modal */}
-        {showContributeModal && selectedGoal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold text-white mb-4">
-                Contribuir para "{selectedGoal.name}"
-              </h2>
+      {/* Contribute Modal */}
+      {showContributeModal && selectedGoal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="card p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold text-[var(--text)] mb-5">
+              Contribuir para {selectedGoal.name}
+            </h2>
 
-              <form onSubmit={handleContributeSubmit} className="space-y-4">
-                <div>
-                  <p className="text-sm text-slate-400 mb-2">
-                    Saldo atual:{' '}
-                    <span className="text-white font-semibold">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(selectedGoal.current_amount)}
-                    </span>
-                  </p>
-                  <p className="text-sm text-slate-400 mb-4">
-                    Faltam:{' '}
-                    <span className="text-rose-400 font-semibold">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(selectedGoal.target_amount - selectedGoal.current_amount)}
-                    </span>
-                  </p>
+            <form onSubmit={handleContributeSubmit} className="space-y-4">
+              <div className="rounded-xl bg-[var(--bg)] border border-[var(--border)] p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--text-muted)]">Saldo atual</span>
+                  <span className="text-[var(--text)] font-semibold tabular-nums">{formatBRL(selectedGoal.current_amount)}</span>
                 </div>
-
-                <div>
-                  <label className="block text-sm text-slate-400 mb-2">Valor*</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={contributeAmount}
-                    onChange={(e) => setContributeAmount(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white"
-                    placeholder="0.00"
-                    required
-                    autoFocus
-                  />
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--text-muted)]">Faltam</span>
+                  <span className="text-[var(--danger)] font-semibold tabular-nums">{formatBRL(selectedGoal.target_amount - selectedGoal.current_amount)}</span>
                 </div>
+              </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowContributeModal(false)
-                      setSelectedGoal(null)
-                      setContributeAmount('')
-                    }}
-                    className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors font-medium"
-                  >
-                    Contribuir
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-muted)] mb-1.5">Valor</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={contributeAmount}
+                  onChange={(e) => setContributeAmount(e.target.value)}
+                  className="input-base w-full"
+                  placeholder="0,00"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowContributeModal(false)
+                    setSelectedGoal(null)
+                    setContributeAmount('')
+                  }}
+                  className="btn-ghost flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl bg-[var(--success)] hover:opacity-90 text-white px-4 py-2.5 text-sm font-medium transition-colors"
+                >
+                  Contribuir
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   )
 }
