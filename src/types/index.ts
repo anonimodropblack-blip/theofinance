@@ -238,3 +238,45 @@ export interface AuditLogEntry {
   metadata?: Record<string, unknown>
   created_at: string
 }
+
+// Imóveis
+export type ImovelTipo = 'kitnet' | 'apartamento' | 'casa' | 'comercial' | 'terreno' | 'outro'
+export type ImovelStatus = 'alugado' | 'vago' | 'reforma'
+export type ImovelPagamentoStatus = 'pago' | 'pendente' | 'atrasado'
+
+export interface Imovel {
+  id: string
+  couple_id: string
+  apelido: string
+  tipo: ImovelTipo
+  endereco?: string | null
+  valor_imovel?: number | null
+  valor_aluguel: number
+  dia_vencimento?: number | null
+  taxa_admin_pct?: number | null
+  inquilino_nome?: string | null
+  inquilino_telefone?: string | null
+  inquilino_observacoes?: string | null
+  contrato_inicio?: string | null
+  contrato_fim?: string | null
+  data_reajuste?: string | null
+  status: ImovelStatus
+  created_by: string
+  created_at: string
+  updated_at: string
+  deleted_at?: string | null
+}
+
+export interface ImovelPagamento {
+  id: string
+  imovel_id: string
+  couple_id: string
+  mes_referencia: string
+  valor_bruto: number
+  valor_liquido: number
+  data_pagamento?: string | null
+  status: ImovelPagamentoStatus
+  observacoes?: string | null
+  created_at: string
+  updated_at: string
+}

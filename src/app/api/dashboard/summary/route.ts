@@ -85,6 +85,13 @@ export async function GET(request: NextRequest) {
       .eq('couple_id', coupleData.id)
       .is('deleted_at', null)
 
+    // Get imóveis (patrimônio imobiliário + renda de aluguel)
+    const { data: imoveis } = await supabase
+      .from('imoveis')
+      .select('valor_imovel, valor_aluguel, taxa_admin_pct, status')
+      .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
+
     // Calculate
     let totalIncome = 0
     let totalExpense = 0
@@ -103,7 +110,22 @@ export async function GET(request: NextRequest) {
       investments?.reduce((sum, i) => sum + Number(i.current_amount || 0), 0) || 0
     const investmentsProfit = totalInvestmentsCurrent - totalInvested
 
-    const netWorth = totalAccountsBalance + totalInvestmentsCurrent
+    const imoveisAtivos = (imoveis || []).filter((i) => i.status === 'alugado')
+    const totalPatrimonioImoveis = (imoveis || []).reduce(
+      (sum, i) => sum + Number(i.valor_imovel || 0),
+      0
+    )
+    const rendaAluguelBruta = imoveisAtivos.reduce(
+      (sum, i) => sum + Number(i.valor_aluguel || 0),
+      0
+    )
+    const rendaAluguelLiquida = imoveisAtivos.reduce(
+      (sum, i) =>
+        sum + Number(i.valor_aluguel || 0) * (1 - Number(i.taxa_admin_pct || 0) / 100),
+      0
+    )
+
+    const netWorth = totalAccountsBalance + totalInvestmentsCurrent + totalPatrimonioImoveis
 
     const summary = {
       period,
@@ -117,6 +139,11 @@ export async function GET(request: NextRequest) {
       totalInvested,
       totalInvestmentsCurrent,
       investmentsProfit,
+      imoveisCount: imoveis?.length || 0,
+      imoveisAtivosCount: imoveisAtivos.length,
+      totalPatrimonioImoveis,
+      rendaAluguelBruta,
+      rendaAluguelLiquida,
       netWorth,
     }
 

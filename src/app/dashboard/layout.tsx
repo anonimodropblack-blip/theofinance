@@ -21,6 +21,7 @@ import {
   X,
   Gauge,
   Hourglass,
+  Building2,
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -38,6 +39,7 @@ const NAV: NavItem[] = [
   { name: 'Contas fixas', href: '/dashboard/contas-fixas', icon: CircleDollarSign, group: 'financas' },
   { name: 'Dívidas', href: '/dashboard/dividas', icon: CircleDollarSign, group: 'financas' },
   { name: 'Investimentos', href: '/dashboard/investimentos', icon: TrendingUp, group: 'financas' },
+  { name: 'Imóveis', href: '/dashboard/imoveis', icon: Building2, group: 'financas' },
   { name: 'Metas', href: '/dashboard/objetivos', icon: Target, group: 'planejamento' },
   { name: 'Planejamento de vida', href: '/dashboard/planejamento', icon: Hourglass, group: 'planejamento' },
   { name: 'Calendário', href: '/dashboard/calendario', icon: CalendarDays, group: 'planejamento' },
