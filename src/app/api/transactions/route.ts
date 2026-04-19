@@ -46,11 +46,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Couple not found' }, { status: 404 })
     }
 
+    // Resolve IDs de contas visíveis (exclui privadas alheias)
+    const { data: visibleAccounts } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('couple_id', coupleData.id)
+      .is('deleted_at', null)
+      .or(`is_private.eq.false,created_by.eq.${userData.user.id}`)
+
+    const visibleIds = (visibleAccounts || []).map((a) => a.id)
+
+    if (visibleIds.length === 0) {
+      return NextResponse.json({ transactions: [] }, { status: 200 })
+    }
+
     let query = supabase
       .from('transactions')
       .select('*')
       .eq('couple_id', coupleData.id)
       .is('deleted_at', null)
+      .in('account_id', visibleIds)
 
     if (accountId) {
       query = query.eq('account_id', accountId)

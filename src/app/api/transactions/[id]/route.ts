@@ -8,7 +8,20 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { amount, type, categoryId, description, date } = body
+    const {
+      amount,
+      type,
+      categoryId,
+      description,
+      date,
+      accountId,
+      toAccountId,
+      category,
+      subcategory,
+      paidByUserId,
+      recurringRule,
+      recurringUntil,
+    } = body
 
     const cookieStore = await cookies()
 
@@ -31,15 +44,34 @@ export async function PATCH(
       }
     )
 
+    const validRules = new Set([
+      'weekly',
+      'biweekly',
+      'monthly',
+      'bimonthly',
+      'quarterly',
+      'yearly',
+    ])
+
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString(),
     }
 
-    if (amount) updates.amount = amount
+    if (amount !== undefined) updates.amount = amount
     if (type) updates.type = type
-    if (categoryId) updates.category_id = categoryId
+    if (categoryId !== undefined) updates.category_id = categoryId
     if (description !== undefined) updates.description = description
     if (date) updates.date = date
+    if (accountId) updates.account_id = accountId
+    if (toAccountId !== undefined) updates.to_account_id = toAccountId
+    if (category !== undefined) updates.category = category
+    if (subcategory !== undefined) updates.subcategory = subcategory
+    if (paidByUserId !== undefined) updates.paid_by_user_id = paidByUserId
+    if (recurringRule !== undefined) {
+      updates.recurring_rule =
+        recurringRule && validRules.has(recurringRule) ? recurringRule : null
+    }
+    if (recurringUntil !== undefined) updates.recurring_until = recurringUntil
 
     const { data: transaction, error } = await supabase
       .from('transactions')

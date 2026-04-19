@@ -42,12 +42,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Couple not found' }, { status: 404 })
     }
 
-    // Get accounts
+    // Get accounts (oculta contas privadas do parceiro)
     const { data: accounts, error } = await supabase
       .from('accounts')
       .select('*')
       .eq('couple_id', coupleData.id)
       .is('deleted_at', null)
+      .or(`is_private.eq.false,created_by.eq.${userData.user.id}`)
       .order('created_at', { ascending: false })
 
     if (error) {

@@ -17,7 +17,7 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react'
-import type { DueBill, FixedAccount } from '@/types'
+import type { DueBill, FixedAccount, Transaction } from '@/types'
 
 type CalendarEvent =
   | {
@@ -42,6 +42,17 @@ type CalendarEvent =
       fixedType: 'expense' | 'income'
       raw: FixedAccount
     }
+  | {
+      kind: 'transaction'
+      id: string
+      date: string
+      title: string
+      amount: number
+      category?: string
+      rule: NonNullable<Transaction['recurring_rule']>
+      txType: Transaction['type']
+      raw: Transaction
+    }
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const MONTHS = [
@@ -60,6 +71,15 @@ const MONTHS = [
 ]
 
 const FREQUENCY_LABEL: Record<FixedAccount['frequency'], string> = {
+  weekly: 'Semanal',
+  biweekly: 'Quinzenal',
+  monthly: 'Mensal',
+  bimonthly: 'Bimestral',
+  quarterly: 'Trimestral',
+  yearly: 'Anual',
+}
+
+const TX_RULE_LABEL: Record<NonNullable<Transaction['recurring_rule']>, string> = {
   weekly: 'Semanal',
   biweekly: 'Quinzenal',
   monthly: 'Mensal',
@@ -93,6 +113,72 @@ function monthsBetween(from: Date, to: Date) {
 function clampDayToMonth(year: number, monthIndex: number, day: number) {
   const last = new Date(year, monthIndex + 1, 0).getDate()
   return Math.min(day, last)
+}
+
+function projectTransaction(
+  tx: Transaction,
+  monthStart: Date,
+  monthEnd: Date,
+): string[] {
+  if (!tx.recurring_rule) return []
+  const anchor = parseIsoDate(tx.date.slice(0, 10))
+  const until = tx.recurring_until ? parseIsoDate(tx.recurring_until.slice(0, 10)) : null
+  if (until && until < monthStart) return []
+  if (anchor > monthEnd) return []
+
+  const dayOfMonth = anchor.getDate()
+  const year = monthStart.getFullYear()
+  const monthIndex = monthStart.getMonth()
+  const dates: string[] = []
+
+  const pushIfValid = (iso: string) => {
+    const d = parseIsoDate(iso)
+    if (d < anchor) return
+    if (until && d > until) return
+    if (d < monthStart || d > monthEnd) return
+    dates.push(iso)
+  }
+
+  switch (tx.recurring_rule) {
+    case 'monthly': {
+      const d = clampDayToMonth(year, monthIndex, dayOfMonth)
+      pushIfValid(isoDate(year, monthIndex, d))
+      break
+    }
+    case 'bimonthly':
+    case 'quarterly':
+    case 'yearly': {
+      const step =
+        tx.recurring_rule === 'bimonthly'
+          ? 2
+          : tx.recurring_rule === 'quarterly'
+            ? 3
+            : 12
+      const diff = monthsBetween(anchor, monthStart)
+      if (diff >= 0 && diff % step === 0) {
+        const d = clampDayToMonth(year, monthIndex, dayOfMonth)
+        pushIfValid(isoDate(year, monthIndex, d))
+      }
+      break
+    }
+    case 'weekly':
+    case 'biweekly': {
+      const step = tx.recurring_rule === 'weekly' ? 7 : 14
+      const cursor = new Date(anchor)
+      while (cursor < monthStart) {
+        cursor.setDate(cursor.getDate() + step)
+      }
+      while (cursor <= monthEnd) {
+        pushIfValid(
+          isoDate(cursor.getFullYear(), cursor.getMonth(), cursor.getDate()),
+        )
+        cursor.setDate(cursor.getDate() + step)
+      }
+      break
+    }
+  }
+
+  return dates
 }
 
 function projectFixedAccount(
@@ -155,6 +241,9 @@ export default function CalendarioPage() {
   )
   const [bills, setBills] = useState<DueBill[]>([])
   const [fixedAccounts, setFixedAccounts] = useState<FixedAccount[]>([])
+  const [recurringTransactions, setRecurringTransactions] = useState<Transaction[]>(
+    [],
+  )
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -182,14 +271,20 @@ export default function CalendarioPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [billsRes, fixedRes] = await Promise.all([
+      const [billsRes, fixedRes, txRes] = await Promise.all([
         fetch('/api/due-bills'),
         fetch('/api/fixed-accounts'),
+        fetch('/api/transactions'),
       ])
       const billsData = await billsRes.json()
       const fixedData = await fixedRes.json()
+      const txData = await txRes.json()
       setBills(billsData.dueBills || [])
       setFixedAccounts(fixedData.fixedAccounts || [])
+      const recurring = (txData.transactions || []).filter(
+        (t: Transaction) => t.recurring_rule,
+      )
+      setRecurringTransactions(recurring)
     } catch (err) {
       console.error('Load calendar error:', err)
     } finally {
@@ -249,8 +344,29 @@ export default function CalendarioPage() {
       }
     }
 
+    for (const tx of recurringTransactions) {
+      if (!tx.recurring_rule) continue
+      const dates = projectTransaction(tx, monthStart, monthEnd)
+      for (const d of dates) {
+        const event: CalendarEvent = {
+          kind: 'transaction',
+          id: `${tx.id}-${d}`,
+          date: d,
+          title: tx.description || tx.category || 'Transação recorrente',
+          amount: Number(tx.amount),
+          category: tx.category ?? undefined,
+          rule: tx.recurring_rule,
+          txType: tx.type,
+          raw: tx,
+        }
+        const arr = map.get(d) ?? []
+        arr.push(event)
+        map.set(d, arr)
+      }
+    }
+
     return map
-  }, [bills, fixedAccounts, monthStart, monthEnd])
+  }, [bills, fixedAccounts, recurringTransactions, monthStart, monthEnd])
 
   const monthSummary = useMemo(() => {
     let totalMonth = 0
@@ -272,6 +388,14 @@ export default function CalendarioPage() {
           if (ev.fixedType === 'income') {
             incomeMonth += ev.amount
           } else {
+            totalMonth += ev.amount
+            fixedExpense += ev.amount
+          }
+        }
+        if (ev.kind === 'transaction') {
+          if (ev.txType === 'income') {
+            incomeMonth += ev.amount
+          } else if (ev.txType === 'expense') {
             totalMonth += ev.amount
             fixedExpense += ev.amount
           }
@@ -582,18 +706,24 @@ export default function CalendarioPage() {
                 (e) => e.kind === 'bill' && e.status === 'paid',
               )
               const hasFixedExpense = events.some(
-                (e) => e.kind === 'fixed' && e.fixedType === 'expense',
+                (e) =>
+                  (e.kind === 'fixed' && e.fixedType === 'expense') ||
+                  (e.kind === 'transaction' && e.txType === 'expense'),
               )
               const hasIncome = events.some(
-                (e) => e.kind === 'fixed' && e.fixedType === 'income',
+                (e) =>
+                  (e.kind === 'fixed' && e.fixedType === 'income') ||
+                  (e.kind === 'transaction' && e.txType === 'income'),
               )
               const dayExpense = events.reduce((sum, e) => {
                 if (e.kind === 'bill' && e.status === 'paid') return sum
                 if (e.kind === 'fixed' && e.fixedType === 'income') return sum
+                if (e.kind === 'transaction' && e.txType !== 'expense') return sum
                 return sum + e.amount
               }, 0)
               const dayIncome = events.reduce((sum, e) => {
                 if (e.kind === 'fixed' && e.fixedType === 'income') return sum + e.amount
+                if (e.kind === 'transaction' && e.txType === 'income') return sum + e.amount
                 return sum
               }, 0)
 
@@ -928,10 +1058,12 @@ function DayModal({
   const totalExpense = events.reduce((sum, e) => {
     if (e.kind === 'bill' && e.status === 'paid') return sum
     if (e.kind === 'fixed' && e.fixedType === 'income') return sum
+    if (e.kind === 'transaction' && e.txType !== 'expense') return sum
     return sum + e.amount
   }, 0)
   const totalIncome = events.reduce((sum, e) => {
     if (e.kind === 'fixed' && e.fixedType === 'income') return sum + e.amount
+    if (e.kind === 'transaction' && e.txType === 'income') return sum + e.amount
     return sum
   }, 0)
 
@@ -1056,13 +1188,61 @@ function DayModal({
                   </div>
                 )
               }
-              const isIncome = ev.fixedType === 'income'
+              if (ev.kind === 'fixed') {
+                const isIncome = ev.fixedType === 'income'
+                const accent = isIncome
+                  ? 'text-[var(--color-success)]'
+                  : 'text-[var(--color-primary)]'
+                const subtle = isIncome
+                  ? 'bg-[var(--color-success-subtle)]'
+                  : 'bg-[var(--color-primary-subtle)]'
+                return (
+                  <div
+                    key={ev.id}
+                    className="p-3 rounded-xl border border-[var(--color-border)] flex items-center gap-3"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center ${subtle}`}
+                    >
+                      {isIncome ? (
+                        <TrendingUp className={`w-4 h-4 ${accent}`} />
+                      ) : (
+                        <Repeat className={`w-4 h-4 ${accent}`} />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{ev.title}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {isIncome ? 'Receita prevista' : 'Despesa fixa'} ·{' '}
+                        {FREQUENCY_LABEL[ev.frequency]}
+                        {ev.category ? ` · ${ev.category}` : ''}
+                      </p>
+                    </div>
+                    <span className={`text-sm font-semibold ${accent}`}>
+                      {isIncome ? '+ ' : ''}
+                      {formatBRL(ev.amount)}
+                    </span>
+                  </div>
+                )
+              }
+              const isIncome = ev.txType === 'income'
+              const isTransfer = ev.txType === 'transfer'
               const accent = isIncome
                 ? 'text-[var(--color-success)]'
-                : 'text-[var(--color-primary)]'
+                : isTransfer
+                  ? 'text-[var(--color-primary)]'
+                  : 'text-[var(--color-danger)]'
               const subtle = isIncome
                 ? 'bg-[var(--color-success-subtle)]'
-                : 'bg-[var(--color-primary-subtle)]'
+                : isTransfer
+                  ? 'bg-[var(--color-primary-subtle)]'
+                  : 'bg-[var(--color-danger-subtle)]'
+              const sign = isIncome ? '+ ' : isTransfer ? '' : '- '
+              const label = isIncome
+                ? 'Receita recorrente'
+                : isTransfer
+                  ? 'Transferência recorrente'
+                  : 'Despesa recorrente'
               return (
                 <div
                   key={ev.id}
@@ -1071,22 +1251,17 @@ function DayModal({
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center ${subtle}`}
                   >
-                    {isIncome ? (
-                      <TrendingUp className={`w-4 h-4 ${accent}`} />
-                    ) : (
-                      <Repeat className={`w-4 h-4 ${accent}`} />
-                    )}
+                    <Repeat className={`w-4 h-4 ${accent}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{ev.title}</p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {isIncome ? 'Receita prevista' : 'Despesa fixa'} ·{' '}
-                      {FREQUENCY_LABEL[ev.frequency]}
+                      {label} · {TX_RULE_LABEL[ev.rule]}
                       {ev.category ? ` · ${ev.category}` : ''}
                     </p>
                   </div>
                   <span className={`text-sm font-semibold ${accent}`}>
-                    {isIncome ? '+ ' : ''}
+                    {sign}
                     {formatBRL(ev.amount)}
                   </span>
                 </div>

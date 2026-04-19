@@ -56,20 +56,27 @@ export async function GET(request: NextRequest) {
       fromDate.setMonth(now.getMonth() - 3)
     }
 
-    // Get transactions for period
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('amount, type')
-      .eq('couple_id', coupleData.id)
-      .gte('date', fromDate.toISOString().split('T')[0])
-      .lte('date', now.toISOString().split('T')[0])
-
-    // Get accounts
+    // Get accounts (oculta contas privadas do parceiro)
     const { data: accounts } = await supabase
       .from('accounts')
-      .select('balance')
+      .select('id, balance, is_private, created_by')
       .eq('couple_id', coupleData.id)
       .is('deleted_at', null)
+      .or(`is_private.eq.false,created_by.eq.${userData.user.id}`)
+
+    const visibleAccountIds = (accounts || []).map((a) => a.id)
+
+    // Get transactions for period (só das contas visíveis; ignora transferências nos totais)
+    const { data: transactions } = visibleAccountIds.length
+      ? await supabase
+          .from('transactions')
+          .select('amount, type')
+          .eq('couple_id', coupleData.id)
+          .in('account_id', visibleAccountIds)
+          .is('deleted_at', null)
+          .gte('date', fromDate.toISOString().split('T')[0])
+          .lte('date', now.toISOString().split('T')[0])
+      : { data: [] as Array<{ amount: number; type: string }> }
 
     // Get investments (patrimônio aplicado)
     const { data: investments } = await supabase

@@ -5,9 +5,11 @@ import {
   ArrowDownLeft,
   ArrowLeftRight,
   ArrowUpRight,
+  Pencil,
   Plus,
   Repeat,
   Search,
+  Trash2,
   X,
 } from 'lucide-react'
 import type { Account, Couple, Transaction, User } from '@/types'
@@ -67,6 +69,7 @@ export default function TransacoesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showModal, setShowModal] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [filterAccountId, setFilterAccountId] = useState('')
   const [filterType, setFilterType] = useState<TxType | ''>('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -185,6 +188,7 @@ export default function TransacoesPage() {
   }
 
   const openCreate = () => {
+    setEditingId(null)
     setForm({
       accountId: accounts[0]?.id ?? '',
       toAccountId: '',
@@ -202,6 +206,39 @@ export default function TransacoesPage() {
     setShowModal(true)
   }
 
+  const openEdit = (t: Transaction) => {
+    setEditingId(t.id)
+    setForm({
+      accountId: t.account_id ?? '',
+      toAccountId: t.to_account_id ?? '',
+      amount: String(t.amount ?? ''),
+      type: t.type,
+      category: t.category ?? '',
+      subcategory: t.subcategory ?? '',
+      description: t.description ?? '',
+      date: (t.date ?? new Date().toISOString()).slice(0, 10),
+      paidByUserId: t.paid_by_user_id ?? me?.id ?? '',
+      recurringRule: (t.recurring_rule ?? '') as RuleType,
+      recurringUntil: (t.recurring_until ?? '').slice(0, 10),
+    })
+    setError('')
+    setShowModal(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Excluir esta transação? Ela vai para a lixeira.')) return
+    try {
+      const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Erro ao excluir')
+      }
+      setTransactions((prev) => prev.filter((t) => t.id !== id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro inesperado')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -215,27 +252,41 @@ export default function TransacoesPage() {
     }
     setSubmitting(true)
     try {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: form.accountId,
-          toAccountId: form.type === 'transfer' ? form.toAccountId : null,
-          amount: parseFloat(form.amount),
-          type: form.type,
-          category: form.category || null,
-          subcategory: form.subcategory || null,
-          description: form.description || null,
-          date: form.date,
-          paidByUserId: form.paidByUserId || null,
-          recurringRule: form.recurringRule || null,
-          recurringUntil: form.recurringUntil || null,
-        }),
-      })
+      const payload = {
+        accountId: form.accountId,
+        toAccountId: form.type === 'transfer' ? form.toAccountId : null,
+        amount: parseFloat(form.amount),
+        type: form.type,
+        category: form.category || null,
+        subcategory: form.subcategory || null,
+        description: form.description || null,
+        date: form.date,
+        paidByUserId: form.paidByUserId || null,
+        recurringRule: form.recurringRule || null,
+        recurringUntil: form.recurringUntil || null,
+      }
+      const res = editingId
+        ? await fetch(`/api/transactions/${editingId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Erro ao criar')
-      setTransactions([data.transaction, ...transactions])
+      if (!res.ok) throw new Error(data.error || 'Erro ao salvar')
+      if (editingId) {
+        setTransactions((prev) =>
+          prev.map((t) => (t.id === editingId ? data.transaction : t)),
+        )
+      } else {
+        setTransactions([data.transaction, ...transactions])
+      }
       setShowModal(false)
+      setEditingId(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado')
     } finally {
@@ -353,9 +404,29 @@ export default function TransacoesPage() {
                     {paidBy ? ` · Pago por ${paidBy}` : ''}
                   </p>
                 </div>
-                <div className={`text-sm font-semibold ${cfg.accent}`}>
-                  {cfg.sign}
-                  {formatBRL(Number(t.amount))}
+                <div className="flex items-center gap-2">
+                  <div className={`text-sm font-semibold ${cfg.accent} whitespace-nowrap`}>
+                    {cfg.sign}
+                    {formatBRL(Number(t.amount))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(t)}
+                      className="p-2 rounded-lg hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]"
+                      aria-label="Editar"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(t.id)}
+                      className="p-2 rounded-lg hover:bg-[var(--color-danger-subtle)] hover:text-[var(--color-danger)] text-[var(--color-text-muted)]"
+                      aria-label="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )
@@ -366,17 +437,25 @@ export default function TransacoesPage() {
       {showModal && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setShowModal(false)}
+          onClick={() => {
+            setShowModal(false)
+            setEditingId(null)
+          }}
         >
           <div
             className="card p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between mb-4">
-              <h2 className="text-lg font-semibold">Nova transação</h2>
+              <h2 className="text-lg font-semibold">
+                {editingId ? 'Editar transação' : 'Nova transação'}
+              </h2>
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false)
+                  setEditingId(null)
+                }}
                 className="p-1.5 rounded-lg hover:bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)]"
               >
                 <X className="w-4 h-4" />
@@ -598,7 +677,10 @@ export default function TransacoesPage() {
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false)
+                    setEditingId(null)
+                  }}
                   className="btn-ghost flex-1 text-sm"
                 >
                   Cancelar
@@ -608,7 +690,7 @@ export default function TransacoesPage() {
                   disabled={submitting}
                   className="btn-primary flex-1 text-sm disabled:opacity-60"
                 >
-                  {submitting ? 'Salvando…' : 'Registrar'}
+                  {submitting ? 'Salvando…' : editingId ? 'Salvar' : 'Registrar'}
                 </button>
               </div>
             </form>
