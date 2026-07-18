@@ -39,6 +39,7 @@ export default function ConfiguracoesPage() {
 
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
+  const [custoFixoMensal, setCustoFixoMensal] = useState('')
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
@@ -56,6 +57,7 @@ export default function ConfiguracoesPage() {
     setConfig(cfg as Configuracao)
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
     setMargemMinima(cfg ? String(cfg.margem_minima_percentual) : '')
+    setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
     setFaixas(
@@ -85,6 +87,7 @@ export default function ConfiguracoesPage() {
       .update({
         imposto_percentual: Number(imposto.replace(',', '.')) || 0,
         margem_minima_percentual: Number(margemMinima.replace(',', '.')) || 0,
+        custo_fixo_mensal: Number(custoFixoMensal.replace(',', '.')) || 0,
       })
       .eq('id', config.id)
     setSalvandoConfig(false)
@@ -232,7 +235,7 @@ export default function ConfiguracoesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={salvarConfig} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="imposto">Imposto (%)</Label>
                 <Input id="imposto" inputMode="decimal" value={imposto} onChange={(e) => setImposto(e.target.value)} />
@@ -241,7 +244,14 @@ export default function ConfiguracoesPage() {
                 <Label htmlFor="margem_minima">Margem mínima (%)</Label>
                 <Input id="margem_minima" inputMode="decimal" value={margemMinima} onChange={(e) => setMargemMinima(e.target.value)} />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="custo_fixo_mensal">Custo fixo mensal (R$)</Label>
+                <Input id="custo_fixo_mensal" inputMode="decimal" placeholder="0,00" value={custoFixoMensal} onChange={(e) => setCustoFixoMensal(e.target.value)} />
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Custo fixo mensal = assinaturas/mensalidades de marketplace (ex: Plano Profissional Amazon R$19/mês). Não entra na margem por produto, só aparece como referência no Dashboard.
+            </p>
             <Button type="submit" disabled={salvandoConfig}>
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
             </Button>

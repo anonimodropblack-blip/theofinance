@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt } from 'lucide-react'
 import type { CategoriaCusto, Configuracao, Estoque, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -242,6 +242,18 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${kpis.produtosAbaixoCount > 0 ? 'text-destructive' : ''}`}>
             {kpis.produtosAbaixoCount} produto{kpis.produtosAbaixoCount === 1 ? '' : 's'}
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <Receipt className="h-3.5 w-3.5" /> Custo Fixo Mensal
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg font-semibold">{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
+            <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
           </CardContent>
         </Card>
       </div>

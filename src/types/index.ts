@@ -78,6 +78,7 @@ export interface Configuracao {
   id: string
   imposto_percentual: number
   margem_minima_percentual: number
+  custo_fixo_mensal: number
   updated_at: string
 }
 
