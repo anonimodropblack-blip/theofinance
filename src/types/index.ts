@@ -1,5 +1,7 @@
 // Tipos do domínio ERP Elysiar — preenchido junto com cada fase (produtos, lotes, estoque...)
 
+export type TipoProduto = 'Cápsula' | 'Pó' | 'Mastigável' | 'Líquido' | 'Chá' | 'Softgel'
+
 export interface Produto {
   id: string
   nome: string
@@ -7,6 +9,11 @@ export interface Produto {
   sku: string | null
   preco_venda: number | null
   status: 'ativo' | 'inativo'
+  formula: string | null
+  tipo: TipoProduto | null
+  qtd_minima: number | null
+  preco_custo_unitario: number | null
+  vendas_mes: number | null
   created_at: string
   updated_at: string
 }
@@ -58,6 +65,7 @@ export interface Configuracao {
   id: string
   imposto_percentual: number
   margem_minima_percentual: number
+  taxa_marketplace_padrao_percentual: number
   updated_at: string
 }
 

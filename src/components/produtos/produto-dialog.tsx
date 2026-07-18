@@ -21,7 +21,9 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
-import type { Produto } from '@/types'
+import type { Produto, TipoProduto } from '@/types'
+
+const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 
 type Props = {
   open: boolean
@@ -37,6 +39,11 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
   const [sku, setSku] = useState('')
   const [precoVenda, setPrecoVenda] = useState('')
   const [status, setStatus] = useState<'ativo' | 'inativo'>('ativo')
+  const [formula, setFormula] = useState('')
+  const [tipo, setTipo] = useState<TipoProduto | ''>('')
+  const [qtdMinima, setQtdMinima] = useState('')
+  const [precoCustoUnitario, setPrecoCustoUnitario] = useState('')
+  const [vendasMes, setVendasMes] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -46,6 +53,11 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
     setSku(produto?.sku ?? '')
     setPrecoVenda(produto?.preco_venda != null ? String(produto.preco_venda) : '')
     setStatus(produto?.status ?? 'ativo')
+    setFormula(produto?.formula ?? '')
+    setTipo(produto?.tipo ?? '')
+    setQtdMinima(produto?.qtd_minima != null ? String(produto.qtd_minima) : '')
+    setPrecoCustoUnitario(produto?.preco_custo_unitario != null ? String(produto.preco_custo_unitario) : '')
+    setVendasMes(produto?.vendas_mes != null ? String(produto.vendas_mes) : '')
   }, [open, produto])
 
   async function onSubmit(e: React.FormEvent) {
@@ -58,6 +70,11 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
       sku: sku.trim() || null,
       preco_venda: precoVenda ? Number(precoVenda.replace(',', '.')) : null,
       status,
+      formula: formula.trim() || null,
+      tipo: tipo || null,
+      qtd_minima: qtdMinima ? Number(qtdMinima) : null,
+      preco_custo_unitario: precoCustoUnitario ? Number(precoCustoUnitario.replace(',', '.')) : null,
+      vendas_mes: vendasMes ? Number(vendasMes) : null,
     }
 
     const { error } = produto
@@ -78,7 +95,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{produto ? 'Editar produto' : 'Novo produto'}</DialogTitle>
         </DialogHeader>
@@ -125,6 +142,52 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
               </Select>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="formula">Fórmula</Label>
+              <Input id="formula" value={formula} onChange={(e) => setFormula(e.target.value)} placeholder="Ex: Beta-alanina 3.2g" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select
+                value={tipo}
+                onValueChange={(v) => setTipo((v as TipoProduto) ?? '')}
+                items={Object.fromEntries(TIPOS_PRODUTO.map((t) => [t, t]))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS_PRODUTO.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="qtd_minima">Qtd. mínima (fábrica)</Label>
+              <Input id="qtd_minima" inputMode="numeric" placeholder="0" value={qtdMinima} onChange={(e) => setQtdMinima(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="preco_custo_unitario">Preço por und. (R$)</Label>
+              <Input
+                id="preco_custo_unitario"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={precoCustoUnitario}
+                onChange={(e) => setPrecoCustoUnitario(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vendas_mes">Vendas/mês (marketplaces)</Label>
+              <Input id="vendas_mes" inputMode="numeric" placeholder="0" value={vendasMes} onChange={(e) => setVendasMes(e.target.value)} />
+            </div>
+          </div>
+
           <DialogFooter>
             <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
