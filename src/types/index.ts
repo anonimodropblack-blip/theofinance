@@ -10,3 +10,45 @@ export interface Produto {
   created_at: string
   updated_at: string
 }
+
+export interface LocalEstoque {
+  id: string
+  nome: string
+  tipo: 'proprio' | 'marketplace'
+  taxa_marketplace: number | null
+  ativo: boolean
+  ordem: number
+}
+
+export interface Lote {
+  id: string
+  codigo: string
+  fornecedor: string
+  data: string
+  created_at: string
+}
+
+export interface LoteItem {
+  id: string
+  lote_id: string
+  produto_id: string
+  quantidade: number
+}
+
+export interface CategoriaCusto {
+  id: string
+  nome: string
+  ativo: boolean
+  padrao: boolean
+  created_at: string
+}
+
+export interface LoteCusto {
+  id: string
+  lote_id: string
+  categoria_id: string
+  modo: 'total' | 'por_unidade'
+  valor: number
+  descricao: string | null
+  created_at: string
+}
