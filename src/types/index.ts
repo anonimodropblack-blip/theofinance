@@ -60,3 +60,23 @@ export interface Configuracao {
   margem_minima_percentual: number
   updated_at: string
 }
+
+export interface Estoque {
+  id: string
+  produto_id: string
+  local_id: string
+  quantidade: number
+}
+
+export interface Movimentacao {
+  id: string
+  produto_id: string
+  tipo: 'entrada_lote' | 'envio' | 'ajuste'
+  quantidade: number
+  origem_local_id: string | null
+  destino_local_id: string | null
+  lote_id: string | null
+  observacao: string | null
+  data: string
+  created_at: string
+}

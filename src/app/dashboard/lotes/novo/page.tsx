@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ProdutoAutocomplete } from '@/components/produtos/produto-autocomplete'
+import { ajustarEstoque } from '@/lib/estoque'
 import { toast } from 'sonner'
 import { Loader2, Trash2, X } from 'lucide-react'
 import type { Produto } from '@/types'
@@ -114,18 +115,7 @@ export default function NovoLotePage() {
       )
 
       for (const item of itens) {
-        const { data: existente } = await supabase
-          .from('estoque')
-          .select('id, quantidade')
-          .eq('produto_id', item.produto.id)
-          .eq('local_id', casa.id)
-          .maybeSingle()
-
-        if (existente) {
-          await supabase.from('estoque').update({ quantidade: existente.quantidade + item.quantidade }).eq('id', existente.id)
-        } else {
-          await supabase.from('estoque').insert({ produto_id: item.produto.id, local_id: casa.id, quantidade: item.quantidade })
-        }
+        await ajustarEstoque(supabase, item.produto.id, casa.id, item.quantidade)
       }
     }
 
