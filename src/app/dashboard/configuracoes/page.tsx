@@ -23,8 +23,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Loader2, Plus } from 'lucide-react'
-import type { CategoriaCusto, Configuracao, LocalEstoque } from '@/types'
+import { Loader2, Plus, Trash2 } from 'lucide-react'
+import type { CategoriaCusto, Configuracao, FaixaTaxaMarketplace, LocalEstoque } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -34,10 +34,10 @@ export default function ConfiguracoesPage() {
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
+  const [faixas, setFaixas] = useState<FaixaTaxaMarketplace[]>([])
 
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
-  const [taxaPadrao, setTaxaPadrao] = useState('')
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
@@ -45,17 +45,24 @@ export default function ConfiguracoesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxs }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
+      supabase.from('faixas_taxa_marketplace').select('*'),
     ])
     setConfig(cfg as Configuracao)
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
     setMargemMinima(cfg ? String(cfg.margem_minima_percentual) : '')
-    setTaxaPadrao(cfg ? String(cfg.taxa_marketplace_padrao_percentual) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
+    setFaixas(
+      ((fxs ?? []) as FaixaTaxaMarketplace[]).sort((a, b) => {
+        if (a.ate_valor == null) return 1
+        if (b.ate_valor == null) return -1
+        return a.ate_valor - b.ate_valor
+      })
+    )
     setLoading(false)
   }, [supabase])
 
@@ -70,7 +77,6 @@ export default function ConfiguracoesPage() {
       .update({
         imposto_percentual: Number(imposto.replace(',', '.')) || 0,
         margem_minima_percentual: Number(margemMinima.replace(',', '.')) || 0,
-        taxa_marketplace_padrao_percentual: Number(taxaPadrao.replace(',', '.')) || 0,
       })
       .eq('id', config.id)
     setSalvandoConfig(false)
@@ -80,6 +86,38 @@ export default function ConfiguracoesPage() {
     }
     toast.success('Configurações salvas')
     carregar()
+  }
+
+  async function atualizarFaixa(faixa: FaixaTaxaMarketplace, campo: 'ate_valor' | 'taxa_percentual', valorTexto: string) {
+    const semLimite = campo === 'ate_valor' && valorTexto.trim() === ''
+    const valor = semLimite ? null : Number(valorTexto.replace(',', '.'))
+    if (!semLimite && Number.isNaN(valor)) return
+    const atual = campo === 'ate_valor' ? faixa.ate_valor : faixa.taxa_percentual
+    if (valor === atual) return
+    const { error } = await supabase.from('faixas_taxa_marketplace').update({ [campo]: valor }).eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao salvar faixa.')
+      return
+    }
+    carregar()
+  }
+
+  async function criarFaixa() {
+    const { error } = await supabase.from('faixas_taxa_marketplace').insert({ ate_valor: 0, taxa_percentual: 0 })
+    if (error) {
+      toast.error('Erro ao criar faixa.')
+      return
+    }
+    carregar()
+  }
+
+  async function excluirFaixa(faixa: FaixaTaxaMarketplace) {
+    const { error } = await supabase.from('faixas_taxa_marketplace').delete().eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao excluir faixa.')
+      return
+    }
+    setFaixas((prev) => prev.filter((f) => f.id !== faixa.id))
   }
 
   async function atualizarTaxaLocal(local: LocalEstoque, novoValor: string) {
@@ -147,7 +185,7 @@ export default function ConfiguracoesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={salvarConfig} className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="imposto">Imposto (%)</Label>
                 <Input id="imposto" inputMode="decimal" value={imposto} onChange={(e) => setImposto(e.target.value)} />
@@ -156,18 +194,64 @@ export default function ConfiguracoesPage() {
                 <Label htmlFor="margem_minima">Margem mínima (%)</Label>
                 <Input id="margem_minima" inputMode="decimal" value={margemMinima} onChange={(e) => setMargemMinima(e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="taxa_padrao">Taxa marketplace padrão (%)</Label>
-                <Input id="taxa_padrao" inputMode="decimal" value={taxaPadrao} onChange={(e) => setTaxaPadrao(e.target.value)} />
-              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              A taxa padrão é usada na projeção de lucro da tela de Produtos. Cada marketplace individual tem sua própria taxa, editável abaixo — essa é usada na Precificação.
-            </p>
             <Button type="submit" disabled={salvandoConfig}>
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Faixas de Comissão por Preço</CardTitle>
+          <CardDescription>
+            Usadas na projeção de lucro da tela de Produtos: quanto menor o preço de venda, maior a taxa. A faixa "Sem limite" (última) é usada pra qualquer preço acima de todas as outras.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Faixa</TableHead>
+                <TableHead className="text-right">Taxa (%)</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {faixas.map((f) => (
+                <TableRow key={f.id}>
+                  <TableCell className="flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">Até R$</span>
+                    <Input
+                      defaultValue={f.ate_valor == null ? '' : String(f.ate_valor)}
+                      placeholder="Sem limite"
+                      inputMode="decimal"
+                      className="w-28"
+                      onBlur={(e) => atualizarFaixa(f, 'ate_valor', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      defaultValue={String(f.taxa_percentual)}
+                      inputMode="decimal"
+                      className="w-20 ml-auto text-right"
+                      onBlur={(e) => atualizarFaixa(f, 'taxa_percentual', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixa(f)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Button type="button" variant="outline" size="sm" onClick={criarFaixa}>
+            <Plus className="h-4 w-4" />
+            Nova faixa
+          </Button>
         </CardContent>
       </Card>
 

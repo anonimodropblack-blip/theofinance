@@ -65,8 +65,14 @@ export interface Configuracao {
   id: string
   imposto_percentual: number
   margem_minima_percentual: number
-  taxa_marketplace_padrao_percentual: number
   updated_at: string
+}
+
+export interface FaixaTaxaMarketplace {
+  id: string
+  ate_valor: number | null
+  taxa_percentual: number
+  created_at: string
 }
 
 export interface Estoque {

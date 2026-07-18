@@ -22,7 +22,7 @@ import {
 import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Configuracao, Produto } from '@/types'
+import type { Configuracao, FaixaTaxaMarketplace, Produto } from '@/types'
 
 type ProdutoComEstoque = Produto & { estoqueTotal: number }
 
@@ -41,16 +41,25 @@ function mesesDesde(iso: string) {
   return Math.max(0, Math.floor(dias / 30))
 }
 
-// Projeção simplificada: desconta o imposto configurado do preço de venda.
-// Não entra taxa de marketplace nem custos de lote (frete/embalagem) — esses
-// já aparecem com detalhe real por marketplace na tela de Precificação.
-function calcularProjecao(p: Produto, impostoPercentual: number) {
+// Taxa de comissão da faixa em que o preço de venda se encaixa (quanto mais barato, maior a taxa).
+// `faixas` já vem ordenada por ate_valor crescente, com a faixa sem limite (null) por último.
+function obterTaxaFaixa(precoVenda: number, faixas: FaixaTaxaMarketplace[]) {
+  const faixa = faixas.find((f) => f.ate_valor == null || precoVenda < f.ate_valor)
+  return faixa ? faixa.taxa_percentual : 0
+}
+
+// Projeção simplificada: desconta a taxa de comissão por faixa de preço + o imposto configurado.
+// Não entra custo de lote (frete/embalagem) — isso já aparece com detalhe real na Precificação.
+function calcularProjecao(p: Produto, impostoPercentual: number, faixas: FaixaTaxaMarketplace[]) {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
     : null
 
   const lucroPorUnidade = p.preco_venda != null && p.preco_custo_unitario != null
-    ? p.preco_venda - p.preco_custo_unitario - p.preco_venda * (impostoPercentual / 100)
+    ? p.preco_venda
+      - p.preco_custo_unitario
+      - p.preco_venda * (obterTaxaFaixa(p.preco_venda, faixas) / 100)
+      - p.preco_venda * (impostoPercentual / 100)
     : null
 
   const margemPct = lucroPorUnidade != null && p.preco_venda ? (lucroPorUnidade / p.preco_venda) * 100 : null
@@ -66,6 +75,7 @@ export default function ProdutosPage() {
   const supabase = useMemo(() => createClient(), [])
   const [produtos, setProdutos] = useState<ProdutoComEstoque[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
+  const [faixas, setFaixas] = useState<FaixaTaxaMarketplace[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -73,9 +83,10 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: cfg }] = await Promise.all([
+    const [{ data, error }, { data: cfg }, { data: fxs }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('configuracoes').select('*').single(),
+      supabase.from('faixas_taxa_marketplace').select('*'),
     ])
 
     if (!error && data) {
@@ -90,6 +101,13 @@ export default function ProdutosPage() {
       )
     }
     setConfig(cfg as Configuracao)
+    setFaixas(
+      ((fxs ?? []) as FaixaTaxaMarketplace[]).sort((a, b) => {
+        if (a.ate_valor == null) return 1
+        if (b.ate_valor == null) return -1
+        return a.ate_valor - b.ate_valor
+      })
+    )
     setLoading(false)
   }, [supabase])
 
@@ -107,12 +125,12 @@ export default function ProdutosPage() {
     let lucroTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, impostoPercentual)
+      const projecao = calcularProjecao(p, impostoPercentual, faixas)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroTotal != null) lucroTotal += projecao.lucroTotal
     }
     return { lucroMes, lucroTotal }
-  }, [produtos, impostoPercentual])
+  }, [produtos, impostoPercentual, faixas])
 
   function abrirNovo() {
     setEditando(null)
@@ -194,7 +212,7 @@ export default function ProdutosPage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p) => {
-                const { precoTotal, lucroPorUnidade, margemPct, lucroMes, lucroTotal } = calcularProjecao(p, impostoPercentual)
+                const { precoTotal, lucroPorUnidade, margemPct, lucroMes, lucroTotal } = calcularProjecao(p, impostoPercentual, faixas)
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 return (
                 <TableRow key={p.id}>
