@@ -2,13 +2,14 @@
 
 import { Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-const DISMISS_KEY = "theofinance:install-dismissed-at";
+const DISMISS_KEY = "elysiar:install-dismissed-at";
 const DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
 export default function InstallPwaPrompt() {
@@ -56,37 +57,29 @@ export default function InstallPwaPrompt() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:w-sm z-50">
-      <div className="card card-hover p-4 flex items-start gap-3 shadow-lg backdrop-blur">
-        <div className="w-10 h-10 shrink-0 rounded-xl bg-[var(--color-primary-subtle)] flex items-center justify-center">
-          <Download className="w-5 h-5 text-[var(--color-primary)]" aria-hidden />
+      <div className="bg-card border border-border rounded-xl p-4 flex items-start gap-3 shadow-lg backdrop-blur">
+        <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center">
+          <Download className="w-5 h-5 text-primary" aria-hidden />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">Instalar TheoFinance</p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-relaxed">
+          <p className="text-sm font-medium">Instalar ERP Elysiar</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
             Acesse mais rápido e receba alertas direto do seu dispositivo.
           </p>
           <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              onClick={handleInstall}
-              className="btn-primary text-xs px-3 py-1.5"
-            >
+            <Button type="button" size="sm" onClick={handleInstall} className="text-xs h-7">
               Instalar
-            </button>
-            <button
-              type="button"
-              onClick={handleDismiss}
-              className="btn-ghost text-xs px-3 py-1.5"
-            >
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={handleDismiss} className="text-xs h-7">
               Agora não
-            </button>
+            </Button>
           </div>
         </div>
         <button
           type="button"
           onClick={handleDismiss}
           aria-label="Fechar"
-          className="text-[var(--color-text-subtle)] hover:text-[var(--color-text)] transition"
+          className="text-muted-foreground hover:text-foreground transition"
         >
           <X className="w-4 h-4" />
         </button>

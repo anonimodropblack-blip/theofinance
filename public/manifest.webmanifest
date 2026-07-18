@@ -1,15 +1,15 @@
 {
-  "name": "TheoFinance — Controle do casal",
-  "short_name": "TheoFinance",
-  "description": "Sistema financeiro inteligente para casais.",
+  "name": "ERP Elysiar",
+  "short_name": "Elysiar",
+  "description": "Controle de estoque, custos de lote e precificação multi-marketplace.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0B0F14",
-  "theme_color": "#0B0F14",
+  "background_color": "#1E1F26",
+  "theme_color": "#1E1F26",
   "lang": "pt-BR",
-  "categories": ["finance", "productivity", "lifestyle"],
+  "categories": ["business", "productivity"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -44,24 +44,17 @@
   ],
   "shortcuts": [
     {
-      "name": "Registrar transação",
-      "short_name": "Nova transação",
-      "description": "Registrar nova receita ou despesa rapidamente",
-      "url": "/dashboard/transacoes?new=1",
+      "name": "Novo lote",
+      "short_name": "Lote",
+      "description": "Registrar um novo lote de compra",
+      "url": "/dashboard/lotes?novo=1",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Chat IA",
-      "short_name": "Chat",
-      "description": "Registro inteligente via chat",
-      "url": "/dashboard/chat",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
-    },
-    {
-      "name": "Calendário financeiro",
-      "short_name": "Calendário",
-      "description": "Ver contas próximas do vencimento",
-      "url": "/dashboard/calendario",
+      "name": "Produtos",
+      "short_name": "Produtos",
+      "description": "Ver e cadastrar produtos",
+      "url": "/dashboard/produtos",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

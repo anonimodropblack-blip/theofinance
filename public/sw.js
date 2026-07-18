@@ -1,4 +1,4 @@
-/* TheoFinance service worker — offline parcial + cache básico */
+/* ERP Elysiar service worker — offline parcial + cache básico */
 /* Estratégia: network-first para páginas, cache-first para estáticos, offline fallback */
 
 const VERSION = "v1";
@@ -104,9 +104,9 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data.json();
   } catch {
-    payload = { title: "TheoFinance", body: event.data.text() };
+    payload = { title: "ERP Elysiar", body: event.data.text() };
   }
-  const { title = "TheoFinance", body, url = "/dashboard", tag } = payload;
+  const { title = "ERP Elysiar", body, url = "/dashboard", tag } = payload;
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
