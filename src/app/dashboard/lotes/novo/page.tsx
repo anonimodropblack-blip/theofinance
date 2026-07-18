@@ -11,7 +11,11 @@ import { toast } from 'sonner'
 import { Loader2, Trash2, X } from 'lucide-react'
 import type { Produto } from '@/types'
 
-type ItemLote = { produto: Produto; quantidade: number }
+type ItemLote = { produto: Produto; quantidade: number; custoUnitario: number }
+
+function formatCurrency(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
 
 function hoje() {
   return new Date().toISOString().slice(0, 10)
@@ -26,6 +30,7 @@ export default function NovoLotePage() {
   const [data, setData] = useState(hoje())
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null)
   const [quantidade, setQuantidade] = useState('')
+  const [custoUnitario, setCustoUnitario] = useState('')
   const [itens, setItens] = useState<ItemLote[]>([])
   const [salvando, setSalvando] = useState(false)
 
@@ -36,13 +41,21 @@ export default function NovoLotePage() {
   }, [supabase])
 
   function adicionarItem() {
-    if (!produtoSelecionado || !quantidade || Number(quantidade) <= 0) {
-      toast.error('Selecione um produto e informe a quantidade.')
+    if (!produtoSelecionado || !quantidade || Number(quantidade) <= 0 || !custoUnitario) {
+      toast.error('Selecione o produto e informe quantidade e custo unitário.')
       return
     }
-    setItens((prev) => [...prev, { produto: produtoSelecionado, quantidade: Number(quantidade) }])
+    setItens((prev) => [
+      ...prev,
+      {
+        produto: produtoSelecionado,
+        quantidade: Number(quantidade),
+        custoUnitario: Number(custoUnitario.replace(',', '.')),
+      },
+    ])
     setProdutoSelecionado(null)
     setQuantidade('')
+    setCustoUnitario('')
   }
 
   function removerItem(produtoId: string) {
@@ -73,7 +86,12 @@ export default function NovoLotePage() {
     }
 
     const { error: erroItens } = await supabase.from('lote_itens').insert(
-      itens.map((i) => ({ lote_id: lote.id, produto_id: i.produto.id, quantidade: i.quantidade }))
+      itens.map((i) => ({
+        lote_id: lote.id,
+        produto_id: i.produto.id,
+        quantidade: i.quantidade,
+        custo_unitario: i.custoUnitario,
+      }))
     )
     if (erroItens) {
       toast.error('Erro ao salvar produtos do lote.')
@@ -154,13 +172,22 @@ export default function NovoLotePage() {
               />
             )}
           </div>
-          <div className="w-28 space-y-2">
+          <div className="w-24 space-y-2">
             <Label>Quantidade</Label>
             <Input
               type="number"
               min={1}
               value={quantidade}
               onChange={(e) => setQuantidade(e.target.value)}
+            />
+          </div>
+          <div className="w-32 space-y-2">
+            <Label>Custo/un (R$)</Label>
+            <Input
+              inputMode="decimal"
+              placeholder="0,00"
+              value={custoUnitario}
+              onChange={(e) => setCustoUnitario(e.target.value)}
             />
           </div>
           <Button type="button" variant="secondary" onClick={adicionarItem}>Adicionar</Button>
@@ -173,7 +200,9 @@ export default function NovoLotePage() {
               <div key={i.produto.id} className="flex items-center justify-between text-sm py-1">
                 <span>{i.produto.nome}</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-muted-foreground">{i.quantidade}</span>
+                  <span className="text-muted-foreground">
+                    {i.quantidade} × {formatCurrency(i.custoUnitario)}
+                  </span>
                   <button type="button" onClick={() => removerItem(i.produto.id)}>
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                   </button>

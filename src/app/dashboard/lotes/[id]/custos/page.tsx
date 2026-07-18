@@ -118,7 +118,11 @@ export default function CustosLotePage() {
       <div className="rounded-lg border border-border p-4 space-y-4">
         <div className="space-y-2">
           <Label>Categoria</Label>
-          <Select value={categoriaId} onValueChange={(v) => setCategoriaId(v ?? '')}>
+          <Select
+            value={categoriaId}
+            onValueChange={(v) => setCategoriaId(v ?? '')}
+            items={Object.fromEntries(categorias.map((c) => [c.id, c.nome]))}
+          >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
@@ -133,7 +137,11 @@ export default function CustosLotePage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Modo</Label>
-            <Select value={modo} onValueChange={(v) => setModo(v as 'total' | 'por_unidade')}>
+            <Select
+              value={modo}
+              onValueChange={(v) => setModo(v as 'total' | 'por_unidade')}
+              items={{ total: 'Valor total', por_unidade: 'Valor por unidade' }}
+            >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>

@@ -110,7 +110,11 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
             </div>
             <div className="space-y-2">
               <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as 'ativo' | 'inativo')}>
+              <Select
+                value={status}
+                onValueChange={(v) => setStatus(v as 'ativo' | 'inativo')}
+                items={{ ativo: 'Ativo', inativo: 'Inativo' }}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>

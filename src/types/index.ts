@@ -33,6 +33,7 @@ export interface LoteItem {
   lote_id: string
   produto_id: string
   quantidade: number
+  custo_unitario: number | null
 }
 
 export interface CategoriaCusto {
@@ -51,4 +52,11 @@ export interface LoteCusto {
   valor: number
   descricao: string | null
   created_at: string
+}
+
+export interface Configuracao {
+  id: string
+  imposto_percentual: number
+  margem_minima_percentual: number
+  updated_at: string
 }
