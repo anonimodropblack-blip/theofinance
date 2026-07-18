@@ -14,6 +14,7 @@ export interface Produto {
   qtd_minima: number | null
   preco_custo_unitario: number | null
   vendas_mes: number | null
+  peso_gramas: number | null
   created_at: string
   updated_at: string
 }
@@ -25,6 +26,18 @@ export interface LocalEstoque {
   taxa_marketplace: number | null
   ativo: boolean
   ordem: number
+  usa_tarifa_fba: boolean
+  fba_logistica_ativa: boolean
+}
+
+export interface FaixaLogisticaFba {
+  id: string
+  peso_min: number
+  peso_max: number | null
+  preco_min: number
+  preco_max: number | null
+  valor_fixo: number
+  created_at: string
 }
 
 export interface Lote {

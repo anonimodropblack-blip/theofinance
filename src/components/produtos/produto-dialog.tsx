@@ -44,6 +44,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
   const [qtdMinima, setQtdMinima] = useState('')
   const [precoCustoUnitario, setPrecoCustoUnitario] = useState('')
   const [vendasMes, setVendasMes] = useState('')
+  const [pesoGramas, setPesoGramas] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
     setQtdMinima(produto?.qtd_minima != null ? String(produto.qtd_minima) : '')
     setPrecoCustoUnitario(produto?.preco_custo_unitario != null ? String(produto.preco_custo_unitario) : '')
     setVendasMes(produto?.vendas_mes != null ? String(produto.vendas_mes) : '')
+    setPesoGramas(produto?.peso_gramas != null ? String(produto.peso_gramas) : '')
   }, [open, produto])
 
   async function onSubmit(e: React.FormEvent) {
@@ -75,6 +77,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
       qtd_minima: qtdMinima ? Number(qtdMinima) : null,
       preco_custo_unitario: precoCustoUnitario ? Number(precoCustoUnitario.replace(',', '.')) : null,
       vendas_mes: vendasMes ? Number(vendasMes) : null,
+      peso_gramas: pesoGramas ? Number(pesoGramas) : null,
     }
 
     const { error } = produto
@@ -186,6 +189,12 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
               <Label htmlFor="vendas_mes">Vendas/mês (marketplaces)</Label>
               <Input id="vendas_mes" inputMode="numeric" placeholder="0" value={vendasMes} onChange={(e) => setVendasMes(e.target.value)} />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="peso_gramas">Peso (gramas)</Label>
+            <Input id="peso_gramas" inputMode="numeric" placeholder="0" className="max-w-[140px]" value={pesoGramas} onChange={(e) => setPesoGramas(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Usado pra calcular a tarifa de logística da Amazon FBA na Precificação.</p>
           </div>
 
           <DialogFooter>
