@@ -27,13 +27,10 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // Rotas protegidas — redirecionar para login se não autenticado
-  const PROTECTED_PATHS = ['/dashboard', '/configuracoes', '/convite']
+  const PROTECTED_PATHS = ['/dashboard']
   const isProtected = PROTECTED_PATHS.some(p => request.nextUrl.pathname.startsWith(p))
 
-  // Exceção: /convite/[token] é acessível sem auth para exibir info do convite
-  const isInvitePage = request.nextUrl.pathname.startsWith('/convite/')
-
-  if (isProtected && !isInvitePage && !user) {
+  if (isProtected && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
