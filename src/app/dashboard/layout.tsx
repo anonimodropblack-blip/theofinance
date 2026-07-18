@@ -10,7 +10,6 @@ import {
   Tags,
   Warehouse,
   Calculator,
-  FileBarChart,
   Settings,
 } from 'lucide-react'
 
@@ -21,7 +20,6 @@ const NAV = [
   { href: '/dashboard/precificacao', label: 'Precificação', icon: Calculator },
   { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse },
   { href: '/dashboard/movimentacoes', label: 'Movimentações', icon: Tags },
-  { href: '/dashboard/relatorios', label: 'Relatórios', icon: FileBarChart },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
