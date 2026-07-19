@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -11,8 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt } from 'lucide-react'
-import type { CategoriaCusto, Configuracao, Estoque, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList } from 'lucide-react'
+import { calcularProjecao } from '@/lib/produtos-projecao'
+import type { CategoriaCusto, Configuracao, Estoque, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -21,6 +23,18 @@ function formatCurrency(v: number) {
 function formatPct(v: number) {
   return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 }
+
+function formatPctNullable(v: number | null) {
+  if (v == null) return '—'
+  return formatPct(v)
+}
+
+function formatCurrencyNullable(v: number | null) {
+  if (v == null) return '—'
+  return formatCurrency(v)
+}
+
+type OrdemColuna = 'margem' | 'vendasMes' | 'lucroMes'
 
 function formatData(iso: string) {
   const [ano, mes, dia] = iso.split('-')
@@ -41,6 +55,12 @@ export default function DashboardPage() {
   const [lotes, setLotes] = useState<Lote[]>([])
   const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
+  const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
+  const [comissaoPercentual, setComissaoPercentual] = useState(0)
+
+  const [relatorioBusca, setRelatorioBusca] = useState('')
+  const [relatorioOrdem, setRelatorioOrdem] = useState<OrdemColuna>('margem')
+  const [relatorioDesc, setRelatorioDesc] = useState(true)
 
   useEffect(() => {
     async function carregar() {
@@ -52,6 +72,8 @@ export default function DashboardPage() {
         { data: lts },
         { data: itens },
         { data: custos },
+        { data: locsFba },
+        { data: fxsFba },
       ] = await Promise.all([
         supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
         supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -60,6 +82,8 @@ export default function DashboardPage() {
         supabase.from('lotes').select('*').order('data', { ascending: false }),
         supabase.from('lote_itens').select('*, lote:lotes(*)'),
         supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
+        supabase.from('locais_estoque').select('*').eq('usa_tarifa_fba', true),
+        supabase.from('faixas_logistica_fba').select('*'),
       ])
 
       setProdutos((prods ?? []) as Produto[])
@@ -69,6 +93,13 @@ export default function DashboardPage() {
       setLotes((lts ?? []) as Lote[])
       setLoteItens((itens ?? []) as LoteItemComLote[])
       setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
+      setComissaoPercentual(locsFba?.[0]?.taxa_marketplace ?? 0)
+      setFaixasFba(
+        ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
+          if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
+          return a.preco_min - b.preco_min
+        })
+      )
       setLoading(false)
     }
     carregar()
@@ -181,6 +212,38 @@ export default function DashboardPage() {
     return lotes.slice(0, 5).map((l) => ({ ...l, quantidade: qtdPorLote.get(l.id) ?? 0 }))
   }, [lotes, loteItens])
 
+  const relatorioProdutos = useMemo(() => {
+    const impostoPercentual = config?.imposto_percentual ?? 0
+    const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+
+    const linhas = produtos.map((p) => {
+      const { margemPct, lucroMes } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+      return { produto: p, margemPct, lucroMes }
+    })
+
+    const q = relatorioBusca.toLowerCase()
+    const filtradas = q
+      ? linhas.filter((l) => l.produto.nome.toLowerCase().includes(q) || (l.produto.fabricante ?? '').toLowerCase().includes(q))
+      : linhas
+
+    const chave = (l: (typeof linhas)[number]) => {
+      if (relatorioOrdem === 'vendasMes') return l.produto.vendas_mes ?? -Infinity
+      if (relatorioOrdem === 'lucroMes') return l.lucroMes ?? -Infinity
+      return l.margemPct ?? -Infinity
+    }
+
+    return [...filtradas].sort((a, b) => (chave(b) - chave(a)) * (relatorioDesc ? 1 : -1))
+  }, [produtos, config, comissaoPercentual, faixasFba, relatorioBusca, relatorioOrdem, relatorioDesc])
+
+  function ordenarPor(coluna: OrdemColuna) {
+    if (relatorioOrdem === coluna) {
+      setRelatorioDesc((d) => !d)
+    } else {
+      setRelatorioOrdem(coluna)
+      setRelatorioDesc(true)
+    }
+  }
+
   if (loading || !kpis) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -290,6 +353,68 @@ export default function DashboardPage() {
                     <TableCell className="text-right">{l.quantidade}</TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <ClipboardList className="h-4 w-4" /> Relatório de Produtos
+          </h2>
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar produto ou fabricante..."
+              value={relatorioBusca}
+              onChange={(e) => setRelatorioBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+        <div className="rounded-lg border border-border overflow-x-auto">
+          {relatorioProdutos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+              <p className="text-sm">{produtos.length === 0 ? 'Nenhum produto ativo cadastrado ainda.' : 'Nenhum produto encontrado.'}</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto</TableHead>
+                  <TableHead className="text-right">
+                    <button type="button" onClick={() => ordenarPor('margem')} className="inline-flex items-center gap-1 hover:text-foreground">
+                      Margem % <ArrowUpDown className="h-3 w-3" />
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <button type="button" onClick={() => ordenarPor('vendasMes')} className="inline-flex items-center gap-1 hover:text-foreground">
+                      Vendas/Mês <ArrowUpDown className="h-3 w-3" />
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <button type="button" onClick={() => ordenarPor('lucroMes')} className="inline-flex items-center gap-1 hover:text-foreground">
+                      Lucro/Mês <ArrowUpDown className="h-3 w-3" />
+                    </button>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {relatorioProdutos.map(({ produto, margemPct, lucroMes }) => {
+                  const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
+                  return (
+                    <TableRow key={produto.id}>
+                      <TableCell className="font-medium">{produto.nome}</TableCell>
+                      <TableCell className={`text-right ${margemBaixa ? 'text-destructive font-medium' : ''}`}>
+                        {formatPctNullable(margemPct)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">{produto.vendas_mes ?? '—'}</TableCell>
+                      <TableCell className="text-right">{formatCurrencyNullable(lucroMes)}</TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
