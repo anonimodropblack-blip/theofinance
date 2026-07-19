@@ -1,7 +1,7 @@
 /* ERP Elysiar service worker — offline parcial + cache básico */
 /* Estratégia: network-first para páginas, cache-first para estáticos, offline fallback */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const PRECACHE = `theofinance-precache-${VERSION}`;
 const RUNTIME = `theofinance-runtime-${VERSION}`;
 
@@ -35,6 +35,8 @@ self.addEventListener("activate", (event) => {
         )
       )
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => clients.forEach((client) => client.postMessage({ type: "SW_UPDATED" })))
   );
 });
 
@@ -57,7 +59,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         try {
-          const networkResponse = await fetch(request);
+          const networkResponse = await fetch(request, { cache: "no-store" });
           const cache = await caches.open(RUNTIME);
           cache.put(request, networkResponse.clone());
           return networkResponse;
