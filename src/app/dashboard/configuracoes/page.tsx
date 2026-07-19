@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplace, LocalEstoque } from '@/types'
+import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, LocalEstoque } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -34,7 +34,6 @@ export default function ConfiguracoesPage() {
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
-  const [faixas, setFaixas] = useState<FaixaTaxaMarketplace[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
 
   const [imposto, setImposto] = useState('')
@@ -47,11 +46,10 @@ export default function ConfiguracoesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxs }, { data: fxsFba }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
-      supabase.from('faixas_taxa_marketplace').select('*'),
       supabase.from('faixas_logistica_fba').select('*'),
     ])
     setConfig(cfg as Configuracao)
@@ -60,13 +58,6 @@ export default function ConfiguracoesPage() {
     setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
-    setFaixas(
-      ((fxs ?? []) as FaixaTaxaMarketplace[]).sort((a, b) => {
-        if (a.ate_valor == null) return 1
-        if (b.ate_valor == null) return -1
-        return a.ate_valor - b.ate_valor
-      })
-    )
     setFaixasFba(
       ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
         if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
@@ -97,38 +88,6 @@ export default function ConfiguracoesPage() {
     }
     toast.success('Configurações salvas')
     carregar()
-  }
-
-  async function atualizarFaixa(faixa: FaixaTaxaMarketplace, campo: 'ate_valor' | 'taxa_percentual', valorTexto: string) {
-    const semLimite = campo === 'ate_valor' && valorTexto.trim() === ''
-    const valor = semLimite ? null : Number(valorTexto.replace(',', '.'))
-    if (!semLimite && Number.isNaN(valor)) return
-    const atual = campo === 'ate_valor' ? faixa.ate_valor : faixa.taxa_percentual
-    if (valor === atual) return
-    const { error } = await supabase.from('faixas_taxa_marketplace').update({ [campo]: valor }).eq('id', faixa.id)
-    if (error) {
-      toast.error('Erro ao salvar faixa.')
-      return
-    }
-    carregar()
-  }
-
-  async function criarFaixa() {
-    const { error } = await supabase.from('faixas_taxa_marketplace').insert({ ate_valor: 0, taxa_percentual: 0 })
-    if (error) {
-      toast.error('Erro ao criar faixa.')
-      return
-    }
-    carregar()
-  }
-
-  async function excluirFaixa(faixa: FaixaTaxaMarketplace) {
-    const { error } = await supabase.from('faixas_taxa_marketplace').delete().eq('id', faixa.id)
-    if (error) {
-      toast.error('Erro ao excluir faixa.')
-      return
-    }
-    setFaixas((prev) => prev.filter((f) => f.id !== faixa.id))
   }
 
   async function atualizarTaxaLocal(local: LocalEstoque, novoValor: string) {
@@ -256,59 +215,6 @@ export default function ConfiguracoesPage() {
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
             </Button>
           </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Faixas de Comissão por Preço</CardTitle>
-          <CardDescription>
-            Usadas na projeção de lucro da tela de Produtos: quanto menor o preço de venda, maior a taxa. A faixa "Sem limite" (última) é usada pra qualquer preço acima de todas as outras.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Faixa</TableHead>
-                <TableHead className="text-right">Taxa (%)</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {faixas.map((f) => (
-                <TableRow key={f.id}>
-                  <TableCell className="flex items-center gap-2">
-                    <span className="text-muted-foreground shrink-0">Até R$</span>
-                    <Input
-                      defaultValue={f.ate_valor == null ? '' : String(f.ate_valor)}
-                      placeholder="Sem limite"
-                      inputMode="decimal"
-                      className="w-28"
-                      onBlur={(e) => atualizarFaixa(f, 'ate_valor', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={String(f.taxa_percentual)}
-                      inputMode="decimal"
-                      className="w-20 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixa(f, 'taxa_percentual', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixa(f)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Button type="button" variant="outline" size="sm" onClick={criarFaixa}>
-            <Plus className="h-4 w-4" />
-            Nova faixa
-          </Button>
         </CardContent>
       </Card>
 

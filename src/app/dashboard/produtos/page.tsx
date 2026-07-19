@@ -22,7 +22,8 @@ import {
 import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Configuracao, FaixaTaxaMarketplace, Produto } from '@/types'
+import { obterTarifaFba } from '@/lib/fba'
+import type { Configuracao, FaixaLogisticaFba, Produto } from '@/types'
 
 type ProdutoComEstoque = Produto & { estoqueTotal: number }
 
@@ -41,25 +42,23 @@ function mesesDesde(iso: string) {
   return Math.max(0, Math.floor(dias / 30))
 }
 
-// Taxa de comissão da faixa em que o preço de venda se encaixa (quanto mais barato, maior a taxa).
-// `faixas` já vem ordenada por ate_valor crescente, com a faixa sem limite (null) por último.
-function obterTaxaFaixa(precoVenda: number, faixas: FaixaTaxaMarketplace[]) {
-  const faixa = faixas.find((f) => f.ate_valor == null || precoVenda < f.ate_valor)
-  return faixa ? faixa.taxa_percentual : 0
-}
-
-// Projeção simplificada: desconta a taxa de comissão por faixa de preço + o imposto configurado.
+// Projeção com os custos reais da Amazon (a mesma taxa e tarifa usadas na Precificação):
+// comissão % do nicho (Saúde e Cuidados Pessoais) + tarifa de logística FBA por peso/preço + imposto.
 // Não entra custo de lote (frete/embalagem) — isso já aparece com detalhe real na Precificação.
-function calcularProjecao(p: Produto, impostoPercentual: number, faixas: FaixaTaxaMarketplace[]) {
+function calcularProjecao(p: Produto, impostoPercentual: number, comissaoPercentual: number, faixasFba: FaixaLogisticaFba[]) {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
     : null
 
-  const lucroPorUnidade = p.preco_venda != null && p.preco_custo_unitario != null
-    ? p.preco_venda
-      - p.preco_custo_unitario
-      - p.preco_venda * (obterTaxaFaixa(p.preco_venda, faixas) / 100)
-      - p.preco_venda * (impostoPercentual / 100)
+  const valorComissao = p.preco_venda != null ? p.preco_venda * (comissaoPercentual / 100) : null
+  const valorImposto = p.preco_venda != null ? p.preco_venda * (impostoPercentual / 100) : null
+  const pesoFaltando = p.preco_venda != null && p.peso_gramas == null
+  const valorLogistica = p.preco_venda != null && p.peso_gramas != null
+    ? obterTarifaFba(p.peso_gramas, p.preco_venda, faixasFba)
+    : null
+
+  const lucroPorUnidade = p.preco_venda != null && p.preco_custo_unitario != null && valorComissao != null && valorImposto != null
+    ? p.preco_venda - p.preco_custo_unitario - valorComissao - valorImposto - (valorLogistica ?? 0)
     : null
 
   const margemPct = lucroPorUnidade != null && p.preco_venda ? (lucroPorUnidade / p.preco_venda) * 100 : null
@@ -68,14 +67,15 @@ function calcularProjecao(p: Produto, impostoPercentual: number, faixas: FaixaTa
 
   const lucroTotal = lucroMes != null ? lucroMes * mesesDesde(p.created_at) : null
 
-  return { precoTotal, lucroPorUnidade, margemPct, lucroMes, lucroTotal }
+  return { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal }
 }
 
 export default function ProdutosPage() {
   const supabase = useMemo(() => createClient(), [])
   const [produtos, setProdutos] = useState<ProdutoComEstoque[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
-  const [faixas, setFaixas] = useState<FaixaTaxaMarketplace[]>([])
+  const [comissaoPercentual, setComissaoPercentual] = useState(0)
+  const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -83,10 +83,11 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: cfg }, { data: fxs }] = await Promise.all([
+    const [{ data, error }, { data: cfg }, { data: locs }, { data: fxsFba }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('configuracoes').select('*').single(),
-      supabase.from('faixas_taxa_marketplace').select('*'),
+      supabase.from('locais_estoque').select('*').eq('usa_tarifa_fba', true),
+      supabase.from('faixas_logistica_fba').select('*'),
     ])
 
     if (!error && data) {
@@ -101,11 +102,11 @@ export default function ProdutosPage() {
       )
     }
     setConfig(cfg as Configuracao)
-    setFaixas(
-      ((fxs ?? []) as FaixaTaxaMarketplace[]).sort((a, b) => {
-        if (a.ate_valor == null) return 1
-        if (b.ate_valor == null) return -1
-        return a.ate_valor - b.ate_valor
+    setComissaoPercentual(locs?.[0]?.taxa_marketplace ?? 0)
+    setFaixasFba(
+      ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
+        if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
+        return a.preco_min - b.preco_min
       })
     )
     setLoading(false)
@@ -125,12 +126,12 @@ export default function ProdutosPage() {
     let lucroTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, impostoPercentual, faixas)
+      const projecao = calcularProjecao(p, impostoPercentual, comissaoPercentual, faixasFba)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroTotal != null) lucroTotal += projecao.lucroTotal
     }
     return { lucroMes, lucroTotal }
-  }, [produtos, impostoPercentual, faixas])
+  }, [produtos, impostoPercentual, comissaoPercentual, faixasFba])
 
   function abrirNovo() {
     setEditando(null)
@@ -201,8 +202,11 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Preço Total</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Estoque</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Imposto</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Logística FBA</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Margem %</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Lucro/Unid.</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Lucro Líquido/Unid.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Vendas/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Total</TableHead>
@@ -212,7 +216,7 @@ export default function ProdutosPage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p) => {
-                const { precoTotal, lucroPorUnidade, margemPct, lucroMes, lucroTotal } = calcularProjecao(p, impostoPercentual, faixas)
+                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal } = calcularProjecao(p, impostoPercentual, comissaoPercentual, faixasFba)
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 return (
                 <TableRow key={p.id}>
@@ -226,6 +230,13 @@ export default function ProdutosPage() {
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(p.preco_venda)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                    {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{formatCurrency(valorImposto)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                    {pesoFaltando ? <span className="text-amber-600 dark:text-amber-500">sem peso</span> : formatCurrency(valorLogistica)}
+                  </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${margemBaixa ? 'text-destructive font-medium' : ''}`}>
                     {formatPct(margemPct)}
                   </TableCell>

@@ -82,13 +82,6 @@ export interface Configuracao {
   updated_at: string
 }
 
-export interface FaixaTaxaMarketplace {
-  id: string
-  ate_valor: number | null
-  taxa_percentual: number
-  created_at: string
-}
-
 export interface Estoque {
   id: string
   produto_id: string
