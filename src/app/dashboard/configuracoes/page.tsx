@@ -224,7 +224,7 @@ export default function ConfiguracoesPage() {
           <CardDescription>Taxa usada na Precificação e no Dashboard. Locais inativos somem dos seletores.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="overflow-x-auto"><Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Local</TableHead>
@@ -270,7 +270,7 @@ export default function ConfiguracoesPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table></div>
         </CardContent>
       </Card>
 
@@ -282,7 +282,7 @@ export default function ConfiguracoesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Table>
+          <div className="overflow-x-auto"><Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="text-right">Peso de (g)</TableHead>
@@ -346,7 +346,7 @@ export default function ConfiguracoesPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table></div>
           <Button type="button" variant="outline" size="sm" onClick={criarFaixaFba}>
             <Plus className="h-4 w-4" />
             Nova faixa
@@ -360,7 +360,7 @@ export default function ConfiguracoesPage() {
           <CardDescription>Usadas ao lançar custos de lote (frete, embalagem etc). Desativar não apaga histórico.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Table>
+          <div className="overflow-x-auto"><Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
@@ -381,7 +381,7 @@ export default function ConfiguracoesPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+          </Table></div>
           <Button type="button" variant="outline" size="sm" onClick={() => setNovaCategoriaOpen(true)}>
             <Plus className="h-4 w-4" />
             Nova categoria

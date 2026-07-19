@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,11 +21,17 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
+import { FabricanteInput } from '@/components/produtos/fabricante-input'
+import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celula-editavel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
-import type { Configuracao, FaixaLogisticaFba, Produto } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
+
+const TIPOS_PRODUTO: readonly TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
+const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
+const STATUS_OPCOES = ['ativo', 'inativo'] as const
 
 type ProdutoComEstoque = Produto & { estoqueTotal: number }
 
@@ -39,9 +45,61 @@ function formatPct(v: number | null) {
   return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 }
 
+function paraNumero(v: string): number | null {
+  const limpo = v.trim().replace(',', '.')
+  return limpo === '' ? null : Number(limpo)
+}
+
+function paraInteiro(v: string): number | null {
+  const limpo = v.trim()
+  return limpo === '' ? null : parseInt(limpo, 10)
+}
+
+// Célula de fabricante: reaproveita o autocomplete do dialog, mas no padrão clica-pra-editar
+// das outras células da tabela.
+function CelulaFabricante({ valor, fabricantes, onSalvar }: { valor: string; fabricantes: Fabricante[]; onSalvar: (v: string) => Promise<void> }) {
+  const [editando, setEditando] = useState(false)
+  const [rascunho, setRascunho] = useState(valor)
+  const [salvando, setSalvando] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { if (!editando) setRascunho(valor) }, [valor, editando])
+
+  async function confirmar() {
+    setEditando(false)
+    if (rascunho.trim() === (valor ?? '')) return
+    setSalvando(true)
+    await onSalvar(rascunho.trim())
+    setSalvando(false)
+  }
+
+  if (editando) {
+    return (
+      <div
+        ref={ref}
+        onClick={(e) => e.stopPropagation()}
+        onBlur={(e) => { if (!ref.current?.contains(e.relatedTarget as Node)) confirmar() }}
+      >
+        <FabricanteInput value={rascunho} onChange={setRascunho} fabricantes={fabricantes} />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditando(true) }}
+      className="w-full text-left rounded px-1.5 py-1 -mx-1.5 hover:bg-muted/70 hover:ring-1 hover:ring-border transition-colors"
+    >
+      {salvando ? <Loader2 className="h-3.5 w-3.5 animate-spin inline" /> : (valor || '—')}
+    </button>
+  )
+}
+
 export default function ProdutosPage() {
   const supabase = useMemo(() => createClient(), [])
   const [produtos, setProdutos] = useState<ProdutoComEstoque[]>([])
+  const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [comissaoPercentual, setComissaoPercentual] = useState(0)
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
@@ -52,8 +110,9 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: cfg }, { data: locs }, { data: fxsFba }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: fxsFba }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
+      supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').eq('usa_tarifa_fba', true),
       supabase.from('faixas_logistica_fba').select('*'),
@@ -70,6 +129,7 @@ export default function ProdutosPage() {
         })
       )
     }
+    setFabricantes((fabs ?? []) as Fabricante[])
     setConfig(cfg as Configuracao)
     setComissaoPercentual(locs?.[0]?.taxa_marketplace ?? 0)
     setFaixasFba(
@@ -98,7 +158,7 @@ export default function ProdutosPage() {
       if (p.status !== 'ativo') continue
       const projecao = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
-      if (projecao.lucroTotal != null) lucroTotal += projecao.lucroTotal
+      if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
     }
     return { lucroMes, lucroTotal }
   }, [produtos, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba])
@@ -111,6 +171,15 @@ export default function ProdutosPage() {
   function abrirEdicao(p: Produto) {
     setEditando(p)
     setDialogOpen(true)
+  }
+
+  async function salvarCampo(id: string, campo: string, valor: unknown) {
+    const { error } = await supabase.from('produtos').update({ [campo]: valor }).eq('id', id)
+    if (error) {
+      toast.error('Erro ao salvar.')
+      return
+    }
+    await carregar()
   }
 
   async function aplicarPrecoSugerido(p: Produto, precoSugerido: number) {
@@ -159,17 +228,20 @@ export default function ProdutosPage() {
         </Card>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Pesquisar produto ou fabricante..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative max-w-sm flex-1 min-w-[220px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Pesquisar produto ou fabricante..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.</p>
       </div>
 
-      <div className="rounded-lg border border-border overflow-x-auto">
+      <div className="rounded-lg border border-border overflow-auto max-h-[70vh]">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -181,13 +253,16 @@ export default function ProdutosPage() {
           </div>
         ) : (
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-20 bg-background">
               <TableRow>
                 <TableHead className="whitespace-nowrap">ID</TableHead>
                 <TableHead className="whitespace-nowrap">Fabricante</TableHead>
-                <TableHead className="whitespace-nowrap">Produto</TableHead>
-                <TableHead className="whitespace-nowrap">Fórmula</TableHead>
+                <TableHead className="whitespace-nowrap sticky left-0 z-30 bg-background">Produto</TableHead>
+                <TableHead className="whitespace-nowrap">Composição / Dosagem</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Qtd. Embalagem</TableHead>
+                <TableHead className="whitespace-nowrap">Unidade</TableHead>
                 <TableHead className="whitespace-nowrap">Tipo</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Peso (g)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Qtd. Mín.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço/Und.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço Total</TableHead>
@@ -207,22 +282,58 @@ export default function ProdutosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtrados.map((p) => {
-                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal, precoSugerido } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+              {filtrados.map((p, index) => {
+                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+                const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 return (
-                <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => abrirEdicao(p)}>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.sku ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.fabricante ?? '—'}</TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">{p.nome}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.formula ?? '—'}</TableCell>
-                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.tipo ?? '—'}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{p.qtd_minima ?? '—'}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(p.preco_custo_unitario)}</TableCell>
+                <TableRow key={p.id} className="hover:bg-muted/50">
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <CelulaFabricante valor={p.fabricante ?? ''} fabricantes={fabricantes} onSalvar={(v) => salvarCampo(p.id, 'fabricante', v || null)} />
+                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background">
+                    <CelulaEditavel valor={p.nome} onSalvar={async (v) => { if (v.trim()) await salvarCampo(p.id, 'nome', v.trim()) }} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <CelulaEditavel valor={p.composicao ?? ''} onSalvar={(v) => salvarCampo(p.id, 'composicao', v.trim() || null)} />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel valor={p.quantidade_embalagem != null ? String(p.quantidade_embalagem) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'quantidade_embalagem', paraInteiro(v))} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <CelulaSelectEditavel valor={p.unidade_embalagem ?? ''} opcoes={UNIDADES_EMBALAGEM} onSalvar={(v) => salvarCampo(p.id, 'unidade_embalagem', v || null)} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <CelulaSelectEditavel valor={p.tipo ?? ''} opcoes={TIPOS_PRODUTO} onSalvar={(v) => salvarCampo(p.id, 'tipo', v || null)} />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel valor={p.peso_gramas != null ? String(p.peso_gramas) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'peso_gramas', paraInteiro(v))} />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel valor={p.qtd_minima != null ? String(p.qtd_minima) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'qtd_minima', paraInteiro(v))} />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel
+                      valor={p.preco_custo_unitario != null ? String(p.preco_custo_unitario) : ''}
+                      exibir={formatCurrency(p.preco_custo_unitario)}
+                      align="right"
+                      tipo="decimal"
+                      onSalvar={(v) => salvarCampo(p.id, 'preco_custo_unitario', paraNumero(v))}
+                    />
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>{formatCurrency(p.preco_venda)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>
+                    <CelulaEditavel
+                      valor={p.preco_venda != null ? String(p.preco_venda) : ''}
+                      exibir={formatCurrency(p.preco_venda)}
+                      align="right"
+                      tipo="decimal"
+                      onSalvar={(v) => salvarCampo(p.id, 'preco_venda', paraNumero(v))}
+                    />
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
                   </TableCell>
@@ -236,10 +347,12 @@ export default function ProdutosPage() {
                     {formatPct(margemPct)}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{p.vendas_mes ?? '—'}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel valor={p.vendas_mes != null ? String(p.vendas_mes) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'vendas_mes', paraInteiro(v))} />
+                  </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroMes)}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroTotal)}</TableCell>
-                  <TableCell className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="whitespace-nowrap">
                     {margemBaixa && precoSugerido != null ? (
                       <div className="flex items-center gap-2">
                         <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoSugerido)}</span>
@@ -252,11 +365,14 @@ export default function ProdutosPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={p.status === 'ativo' ? 'default' : 'secondary'}>
-                      {p.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                    </Badge>
+                    <CelulaSelectEditavel
+                      valor={p.status}
+                      opcoes={STATUS_OPCOES}
+                      exibir={<Badge variant={p.status === 'ativo' ? 'default' : 'secondary'}>{p.status === 'ativo' ? 'Ativo' : 'Inativo'}</Badge>}
+                      onSalvar={(v) => salvarCampo(p.id, 'status', v)}
+                    />
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                  <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -266,7 +382,7 @@ export default function ProdutosPage() {
                         }
                       />
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => abrirEdicao(p)}>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => abrirEdicao(p)}>Editar (formulário completo)</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => excluirProduto(p)} className="text-destructive">Excluir</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

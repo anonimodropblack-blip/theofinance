@@ -22,9 +22,10 @@ import {
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { FabricanteInput } from './fabricante-input'
-import type { Fabricante, Produto, TipoProduto } from '@/types'
+import type { Fabricante, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
 
 const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
+const UNIDADES_EMBALAGEM: UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 
 type Props = {
   open: boolean
@@ -41,7 +42,9 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
   const [sku, setSku] = useState('')
   const [precoVenda, setPrecoVenda] = useState('')
   const [status, setStatus] = useState<'ativo' | 'inativo'>('ativo')
-  const [formula, setFormula] = useState('')
+  const [composicao, setComposicao] = useState('')
+  const [quantidadeEmbalagem, setQuantidadeEmbalagem] = useState('')
+  const [unidadeEmbalagem, setUnidadeEmbalagem] = useState<UnidadeEmbalagem | ''>('')
   const [tipo, setTipo] = useState<TipoProduto | ''>('')
   const [qtdMinima, setQtdMinima] = useState('')
   const [precoCustoUnitario, setPrecoCustoUnitario] = useState('')
@@ -57,7 +60,9 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
     setSku(produto?.sku ?? '')
     setPrecoVenda(produto?.preco_venda != null ? String(produto.preco_venda) : '')
     setStatus(produto?.status ?? 'ativo')
-    setFormula(produto?.formula ?? '')
+    setComposicao(produto?.composicao ?? '')
+    setQuantidadeEmbalagem(produto?.quantidade_embalagem != null ? String(produto.quantidade_embalagem) : '')
+    setUnidadeEmbalagem(produto?.unidade_embalagem ?? '')
     setTipo(produto?.tipo ?? '')
     setQtdMinima(produto?.qtd_minima != null ? String(produto.qtd_minima) : '')
     setPrecoCustoUnitario(produto?.preco_custo_unitario != null ? String(produto.preco_custo_unitario) : '')
@@ -81,7 +86,9 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
       sku: sku.trim() || null,
       preco_venda: precoVenda ? Number(precoVenda.replace(',', '.')) : null,
       status,
-      formula: formula.trim() || null,
+      composicao: composicao.trim() || null,
+      quantidade_embalagem: quantidadeEmbalagem ? Number(quantidadeEmbalagem) : null,
+      unidade_embalagem: unidadeEmbalagem || null,
       tipo: tipo || null,
       qtd_minima: qtdMinima ? Number(qtdMinima) : null,
       preco_custo_unitario: precoCustoUnitario ? Number(precoCustoUnitario.replace(',', '.')) : null,
@@ -155,10 +162,32 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="composicao">Composição / Dosagem</Label>
+            <Input id="composicao" value={composicao} onChange={(e) => setComposicao(e.target.value)} placeholder="Ex: Coenzima Q10 200mg" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="formula">Fórmula</Label>
-              <Input id="formula" value={formula} onChange={(e) => setFormula(e.target.value)} placeholder="Ex: Beta-alanina 3.2g" />
+              <Label htmlFor="quantidade_embalagem">Quantidade</Label>
+              <Input id="quantidade_embalagem" inputMode="numeric" placeholder="60" value={quantidadeEmbalagem} onChange={(e) => setQuantidadeEmbalagem(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Unidade</Label>
+              <Select
+                value={unidadeEmbalagem}
+                onValueChange={(v) => setUnidadeEmbalagem((v as UnidadeEmbalagem) ?? '')}
+                items={Object.fromEntries(UNIDADES_EMBALAGEM.map((u) => [u, u]))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecionar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {UNIDADES_EMBALAGEM.map((u) => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Tipo</Label>

@@ -4,11 +4,16 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// Sem overflow-x-auto aqui de propósito: cada página já envolve <Table> num wrapper com
+// scroll próprio. Ter dois containers de scroll aninhados quebra `position: sticky` (o
+// navegador upgrada o overflow-y "visible" do wrapper interno pra "auto" por causa do
+// overflow-x, criando um segundo scroll container e o sticky passa a seguir o container
+// errado). Sempre envolver <Table> num <div className="overflow-auto ..."> na página.
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full"
     >
       <table
         data-slot="table"

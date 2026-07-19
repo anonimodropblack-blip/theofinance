@@ -12,9 +12,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag } from 'lucide-react'
 import { calcularProjecao } from '@/lib/produtos-projecao'
-import { corMargem } from '@/lib/cores'
+import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import type { CategoriaCusto, Configuracao, Estoque, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -193,6 +193,17 @@ export default function DashboardPage() {
 
     const margemMedia = pesoTotal > 0 ? margemPonderadaSoma / pesoTotal : 0
 
+    // pedidos/mês e ticket médio: aproximados a partir de Vendas/Mês (estimativa manual por
+    // produto) — o sistema não registra pedidos individuais.
+    let faturamentoMensal = 0
+    let pedidosMes = 0
+    for (const p of produtos) {
+      if (p.preco_venda == null || p.vendas_mes == null) continue
+      faturamentoMensal += p.preco_venda * p.vendas_mes
+      pedidosMes += p.vendas_mes
+    }
+    const ticketMedio = pedidosMes > 0 ? faturamentoMensal / pedidosMes : 0
+
     return {
       investimentoMercadoria,
       investimentoTotal,
@@ -202,6 +213,8 @@ export default function DashboardPage() {
       margemMedia,
       temEstoqueComMargem: pesoTotal > 0,
       produtosAbaixoCount: produtosAbaixo.size,
+      pedidosMes,
+      ticketMedio,
     }
   }, [config, locais, produtos, estoque, loteItens, loteCustos])
 
@@ -257,7 +270,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
@@ -311,6 +324,24 @@ export default function DashboardPage() {
           <CardContent className={`text-lg font-semibold ${kpis.produtosAbaixoCount > 0 ? 'text-destructive' : ''}`}>
             {kpis.produtosAbaixoCount} produto{kpis.produtosAbaixoCount === 1 ? '' : 's'}
           </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <ShoppingCart className="h-3.5 w-3.5" /> Pedidos/Mês (estimado)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">{kpis.pedidosMes}</CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <Tag className="h-3.5 w-3.5" /> Ticket Médio (estimado)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.ticketMedio)}</CardContent>
         </Card>
 
         <Card size="sm">
