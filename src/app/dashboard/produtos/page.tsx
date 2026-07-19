@@ -23,6 +23,7 @@ import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { COR_CUSTO, COR_FATURAMENTO, COR_LUCRO, corMargem } from '@/lib/cores'
 import { toast } from 'sonner'
 import type { Configuracao, FaixaLogisticaFba, Produto } from '@/types'
 
@@ -148,13 +149,13 @@ export default function ProdutosPage() {
           <CardHeader>
             <CardTitle className="text-muted-foreground text-xs font-normal">Lucro/Mês (todos ativos)</CardTitle>
           </CardHeader>
-          <CardContent className="text-lg font-semibold">{formatCurrency(totais.lucroMes)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(totais.lucroMes)}</CardContent>
         </Card>
         <Card size="sm">
           <CardHeader>
             <CardTitle className="text-muted-foreground text-xs font-normal">Lucro Total (todos ativos)</CardTitle>
           </CardHeader>
-          <CardContent className="text-lg font-semibold">{formatCurrency(totais.lucroTotal)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(totais.lucroTotal)}</CardContent>
         </Card>
       </div>
 
@@ -217,30 +218,30 @@ export default function ProdutosPage() {
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.formula ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.tipo ?? '—'}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.qtd_minima ?? '—'}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(p.preco_custo_unitario)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>{formatCurrency(p.preco_custo_unitario)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(p.preco_venda)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                  <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>{formatCurrency(p.preco_venda)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
                     {formatCurrency(valorImposto)} <span className="text-xs">({formatPct(p.preco_venda != null ? impostoPercentual : null)})</span>
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
                     {pesoFaltando ? <span className="text-amber-600 dark:text-amber-500">sem peso</span> : formatCurrency(valorLogistica)}
                   </TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${margemBaixa ? 'text-destructive font-medium' : ''}`}>
+                  <TableCell className={`text-right whitespace-nowrap font-medium ${corMargem(margemPct, margemMinimaPercentual)}`}>
                     {formatPct(margemPct)}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(lucroPorUnidade)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.vendas_mes ?? '—'}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(lucroMes)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(lucroTotal)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroMes)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroTotal)}</TableCell>
                   <TableCell className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     {margemBaixa && precoSugerido != null ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-destructive font-medium">{formatCurrency(precoSugerido)}</span>
+                        <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoSugerido)}</span>
                         <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => aplicarPrecoSugerido(p, precoSugerido)}>
                           Aplicar
                         </Button>

@@ -43,6 +43,10 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
   const [localId, setLocalId] = useState('')
   const [quantidade, setQuantidade] = useState('')
   const [observacao, setObservacao] = useState('')
+  const [quantidadeCaixas, setQuantidadeCaixas] = useState('')
+  const [codigoReferencia, setCodigoReferencia] = useState('')
+  const [motorista, setMotorista] = useState('')
+  const [custoFrete, setCustoFrete] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
@@ -54,6 +58,10 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
     setLocalId('')
     setQuantidade('')
     setObservacao('')
+    setQuantidadeCaixas('')
+    setCodigoReferencia('')
+    setMotorista('')
+    setCustoFrete('')
   }, [open, locais])
 
   async function salvar() {
@@ -85,6 +93,10 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         origem_local_id: origemId,
         destino_local_id: destinoId,
         observacao: observacao.trim() || null,
+        quantidade_caixas: quantidadeCaixas ? Number(quantidadeCaixas) : null,
+        codigo_referencia: codigoReferencia.trim() || null,
+        motorista: motorista.trim() || null,
+        custo_frete: custoFrete ? Number(custoFrete.replace(',', '.')) : null,
       })
       if (error) { toast.error('Erro ao salvar movimentação.'); setSalvando(false); return }
       await ajustarEstoque(supabase, produto.id, origemId, -qtd)
@@ -211,6 +223,44 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
               onChange={(e) => setQuantidade(e.target.value)}
             />
           </div>
+
+          {tipo === 'envio' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Qtd. de caixas</Label>
+                  <Input
+                    type="number"
+                    value={quantidadeCaixas}
+                    onChange={(e) => setQuantidadeCaixas(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Código de referência</Label>
+                  <Input
+                    placeholder="Seu código interno do envio"
+                    value={codigoReferencia}
+                    onChange={(e) => setCodigoReferencia(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Motorista</Label>
+                  <Input value={motorista} onChange={(e) => setMotorista(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Custo do frete (R$)</Label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={custoFrete}
+                    onChange={(e) => setCustoFrete(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label>Observação (opcional)</Label>

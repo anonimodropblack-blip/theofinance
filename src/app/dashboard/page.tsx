@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList } from 'lucide-react'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { COR_CUSTO, COR_LUCRO, corMargem } from '@/lib/cores'
 import type { CategoriaCusto, Configuracao, Estoque, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -287,7 +288,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-3.5 w-3.5" /> Lucro Projetado
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-lg font-semibold">{formatCurrency(kpis.lucroProjetado)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(kpis.lucroProjetado)}</CardContent>
         </Card>
 
         <Card size="sm">
@@ -296,7 +297,7 @@ export default function DashboardPage() {
               <Percent className="h-3.5 w-3.5" /> Margem Média
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-lg font-semibold">
+          <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
             {kpis.temEstoqueComMargem ? formatPct(kpis.margemMedia * 100) : '—'}
           </CardContent>
         </Card>
@@ -319,14 +320,14 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold">{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
+            <div className={`text-lg font-semibold ${COR_CUSTO}`}>{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
             <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Boxes className="h-4 w-4" /> Últimos Lotes
         </h2>
         <div className="rounded-lg border border-border overflow-x-auto">
@@ -361,7 +362,7 @@ export default function DashboardPage() {
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
             <ClipboardList className="h-4 w-4" /> Relatório de Produtos
           </h2>
           <div className="relative w-full max-w-xs">
@@ -403,15 +404,15 @@ export default function DashboardPage() {
               </TableHeader>
               <TableBody>
                 {relatorioProdutos.map(({ produto, margemPct, lucroMes }) => {
-                  const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
+                  const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
                   return (
                     <TableRow key={produto.id}>
                       <TableCell className="font-medium">{produto.nome}</TableCell>
-                      <TableCell className={`text-right ${margemBaixa ? 'text-destructive font-medium' : ''}`}>
+                      <TableCell className={`text-right font-medium ${corMargemProduto}`}>
                         {formatPctNullable(margemPct)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{produto.vendas_mes ?? '—'}</TableCell>
-                      <TableCell className="text-right">{formatCurrencyNullable(lucroMes)}</TableCell>
+                      <TableCell className={`text-right ${COR_LUCRO}`}>{formatCurrencyNullable(lucroMes)}</TableCell>
                     </TableRow>
                   )
                 })}

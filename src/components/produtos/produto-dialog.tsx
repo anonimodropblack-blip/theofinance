@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
-import type { Produto, TipoProduto } from '@/types'
+import { FabricanteInput } from './fabricante-input'
+import type { Fabricante, Produto, TipoProduto } from '@/types'
 
 const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 
@@ -36,6 +37,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
   const supabase = createClient()
   const [nome, setNome] = useState('')
   const [fabricante, setFabricante] = useState('')
+  const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
   const [sku, setSku] = useState('')
   const [precoVenda, setPrecoVenda] = useState('')
   const [status, setStatus] = useState<'ativo' | 'inativo'>('ativo')
@@ -49,6 +51,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return
+    supabase.from('fabricantes').select('*').order('nome').then(({ data }) => setFabricantes((data ?? []) as Fabricante[]))
     setNome(produto?.nome ?? '')
     setFabricante(produto?.fabricante ?? '')
     setSku(produto?.sku ?? '')
@@ -66,9 +69,15 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
     e.preventDefault()
     setSaving(true)
 
+    const fabricanteNome = fabricante.trim()
+    const jaExiste = fabricanteNome && fabricantes.some((f) => f.nome.toLowerCase() === fabricanteNome.toLowerCase())
+    if (fabricanteNome && !jaExiste) {
+      await supabase.from('fabricantes').insert({ nome: fabricanteNome })
+    }
+
     const payload = {
       nome: nome.trim(),
-      fabricante: fabricante.trim() || null,
+      fabricante: fabricanteNome || null,
       sku: sku.trim() || null,
       preco_venda: precoVenda ? Number(precoVenda.replace(',', '.')) : null,
       status,
@@ -110,7 +119,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="fabricante">Fabricante</Label>
-              <Input id="fabricante" value={fabricante} onChange={(e) => setFabricante(e.target.value)} />
+              <FabricanteInput value={fabricante} onChange={setFabricante} fabricantes={fabricantes} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="sku">SKU</Label>

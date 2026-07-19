@@ -11,11 +11,13 @@ import {
   Warehouse,
   Calculator,
   Settings,
+  Factory,
 } from 'lucide-react'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
+  { href: '/dashboard/fabricantes', label: 'Fabricantes', icon: Factory },
   { href: '/dashboard/lotes', label: 'Lotes', icon: Boxes },
   { href: '/dashboard/precificacao', label: 'Precificação', icon: Calculator },
   { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse },

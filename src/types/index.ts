@@ -19,6 +19,19 @@ export interface Produto {
   updated_at: string
 }
 
+export interface Fabricante {
+  id: string
+  nome: string
+  telefone: string | null
+  whatsapp: string | null
+  email: string | null
+  site: string | null
+  endereco: string | null
+  contato_responsavel: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface LocalEstoque {
   id: string
   nome: string
@@ -98,6 +111,10 @@ export interface Movimentacao {
   destino_local_id: string | null
   lote_id: string | null
   observacao: string | null
+  quantidade_caixas: number | null
+  codigo_referencia: string | null
+  motorista: string | null
+  custo_frete: number | null
   data: string
   created_at: string
 }
