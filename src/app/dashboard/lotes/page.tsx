@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,6 +25,7 @@ function formatData(iso: string) {
 
 export default function LotesPage() {
   const supabase = useMemo(() => createClient(), [])
+  const router = useRouter()
   const [lotes, setLotes] = useState<LoteComTotal[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -87,7 +89,11 @@ export default function LotesPage() {
             </TableHeader>
             <TableBody>
               {lotes.map((l) => (
-                <TableRow key={l.id}>
+                <TableRow
+                  key={l.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/dashboard/lotes/${l.id}/custos`)}
+                >
                   <TableCell className="font-medium">{l.codigo}</TableCell>
                   <TableCell className="text-muted-foreground">{l.fornecedor}</TableCell>
                   <TableCell className="text-muted-foreground">{formatData(l.data)}</TableCell>
@@ -96,7 +102,7 @@ export default function LotesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      render={<Link href={`/dashboard/lotes/${l.id}/custos`}>Custos</Link>}
+                      render={<Link href={`/dashboard/lotes/${l.id}/custos`} onClick={(e) => e.stopPropagation()}>Custos</Link>}
                     />
                   </TableCell>
                 </TableRow>

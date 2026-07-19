@@ -23,6 +23,7 @@ import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { obterTarifaFba } from '@/lib/fba'
+import { toast } from 'sonner'
 import type { Configuracao, FaixaLogisticaFba, Produto } from '@/types'
 
 type ProdutoComEstoque = Produto & { estoqueTotal: number }
@@ -45,7 +46,7 @@ function mesesDesde(iso: string) {
 // Projeção com os custos reais da Amazon (a mesma taxa e tarifa usadas na Precificação):
 // comissão % do nicho (Saúde e Cuidados Pessoais) + tarifa de logística FBA por peso/preço + imposto.
 // Não entra custo de lote (frete/embalagem) — isso já aparece com detalhe real na Precificação.
-function calcularProjecao(p: Produto, impostoPercentual: number, comissaoPercentual: number, faixasFba: FaixaLogisticaFba[]) {
+function calcularProjecao(p: Produto, impostoPercentual: number, comissaoPercentual: number, margemMinimaPercentual: number, faixasFba: FaixaLogisticaFba[]) {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
     : null
@@ -67,7 +68,14 @@ function calcularProjecao(p: Produto, impostoPercentual: number, comissaoPercent
 
   const lucroTotal = lucroMes != null ? lucroMes * mesesDesde(p.created_at) : null
 
-  return { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal }
+  // Preço que atinge exatamente a margem mínima configurada, usando a logística da faixa atual como aproximação
+  // (a tarifa muda por faixa de preço, então o valor exato pode variar um pouco após aplicar).
+  const denominador = 1 - (margemMinimaPercentual / 100) - (comissaoPercentual / 100) - (impostoPercentual / 100)
+  const precoSugerido = p.preco_custo_unitario != null && denominador > 0
+    ? (p.preco_custo_unitario + (valorLogistica ?? 0)) / denominador
+    : null
+
+  return { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal, precoSugerido }
 }
 
 export default function ProdutosPage() {
@@ -120,18 +128,19 @@ export default function ProdutosPage() {
   })
 
   const impostoPercentual = config?.imposto_percentual ?? 0
+  const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
 
   const totais = useMemo(() => {
     let lucroMes = 0
     let lucroTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, impostoPercentual, comissaoPercentual, faixasFba)
+      const projecao = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroTotal != null) lucroTotal += projecao.lucroTotal
     }
     return { lucroMes, lucroTotal }
-  }, [produtos, impostoPercentual, comissaoPercentual, faixasFba])
+  }, [produtos, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba])
 
   function abrirNovo() {
     setEditando(null)
@@ -141,6 +150,27 @@ export default function ProdutosPage() {
   function abrirEdicao(p: Produto) {
     setEditando(p)
     setDialogOpen(true)
+  }
+
+  async function aplicarPrecoSugerido(p: Produto, precoSugerido: number) {
+    const { error } = await supabase.from('produtos').update({ preco_venda: precoSugerido }).eq('id', p.id)
+    if (error) {
+      toast.error('Erro ao aplicar preço sugerido.')
+      return
+    }
+    toast.success(`Preço de ${p.nome} atualizado para ${formatCurrency(precoSugerido)}`)
+    carregar()
+  }
+
+  async function excluirProduto(p: Produto) {
+    if (!window.confirm(`Excluir "${p.nome}"? Essa ação não pode ser desfeita.`)) return
+    const { error } = await supabase.from('produtos').delete().eq('id', p.id)
+    if (error) {
+      toast.error(`Não foi possível excluir "${p.nome}" — provavelmente já tem lote ou movimentação vinculada. Marque como Inativo em vez de excluir.`)
+      return
+    }
+    toast.success(`"${p.nome}" excluído`)
+    carregar()
   }
 
   return (
@@ -207,6 +237,7 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Logística FBA</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Margem %</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Líquido/Unid.</TableHead>
+                <TableHead className="whitespace-nowrap">Sugestão de Preço</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Vendas/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Total</TableHead>
@@ -216,10 +247,10 @@ export default function ProdutosPage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p) => {
-                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal } = calcularProjecao(p, impostoPercentual, comissaoPercentual, faixasFba)
+                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal, precoSugerido } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 return (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => abrirEdicao(p)}>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.sku ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.fabricante ?? '—'}</TableCell>
                   <TableCell className="font-medium whitespace-nowrap">{p.nome}</TableCell>
@@ -233,7 +264,9 @@ export default function ProdutosPage() {
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{formatCurrency(valorImposto)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                    {formatCurrency(valorImposto)} <span className="text-xs">({formatPct(p.preco_venda != null ? impostoPercentual : null)})</span>
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {pesoFaltando ? <span className="text-amber-600 dark:text-amber-500">sem peso</span> : formatCurrency(valorLogistica)}
                   </TableCell>
@@ -244,12 +277,24 @@ export default function ProdutosPage() {
                   <TableCell className="text-right whitespace-nowrap">{p.vendas_mes ?? '—'}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(lucroMes)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(lucroTotal)}</TableCell>
+                  <TableCell className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {margemBaixa && precoSugerido != null ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-destructive font-medium">{formatCurrency(precoSugerido)}</span>
+                        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => aplicarPrecoSugerido(p, precoSugerido)}>
+                          Aplicar
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={p.status === 'ativo' ? 'default' : 'secondary'}>
                       {p.status === 'ativo' ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -260,6 +305,7 @@ export default function ProdutosPage() {
                       />
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => abrirEdicao(p)}>Editar</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => excluirProduto(p)} className="text-destructive">Excluir</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
