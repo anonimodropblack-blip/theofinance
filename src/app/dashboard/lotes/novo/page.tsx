@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { ProdutoAutocomplete } from '@/components/produtos/produto-autocomplete'
 import { ajustarEstoque } from '@/lib/estoque'
 import { toast } from 'sonner'
-import { Loader2, Trash2, X } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, Trash2, X, ArrowLeft } from 'lucide-react'
 import type { Produto } from '@/types'
 
 type ItemLote = { produto: Produto; quantidade: number; custoUnitario: number }
@@ -125,11 +126,17 @@ export default function NovoLotePage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Novo Lote</h1>
-        <Button onClick={salvar} disabled={salvando}>
-          {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
-        </Button>
+      <div>
+        <Link href="/dashboard/lotes" className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 mb-2">
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Lotes
+        </Link>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold tracking-tight">Novo Lote</h1>
+          <Button onClick={salvar} disabled={salvando}>
+            {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

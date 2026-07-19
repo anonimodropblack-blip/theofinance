@@ -162,6 +162,7 @@ export default function DashboardPage() {
     const margemMedia = pesoTotal > 0 ? margemPonderadaSoma / pesoTotal : 0
 
     return {
+      investimentoMercadoria,
       investimentoTotal,
       estoqueUnidades,
       estoqueValor,
@@ -199,7 +200,10 @@ export default function DashboardPage() {
               <Wallet className="h-3.5 w-3.5" /> Investimento Total
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-lg font-semibold">{formatCurrency(kpis.investimentoTotal)}</CardContent>
+          <CardContent>
+            <div className="text-lg font-semibold">{formatCurrency(kpis.investimentoTotal)}</div>
+            <div className="text-xs text-muted-foreground">{formatCurrency(kpis.investimentoMercadoria)} só em produtos</div>
+          </CardContent>
         </Card>
 
         <Card size="sm">

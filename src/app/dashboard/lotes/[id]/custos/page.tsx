@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner'
 import { Loader2, Trash2, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
-import type { CategoriaCusto, Lote, LoteCusto } from '@/types'
+import type { CategoriaCusto, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -28,6 +28,7 @@ export default function CustosLotePage() {
   const supabase = useMemo(() => createClient(), [])
 
   const [lote, setLote] = useState<Lote | null>(null)
+  const [itens, setItens] = useState<(LoteItem & { produto: Produto })[]>([])
   const [totalUnidades, setTotalUnidades] = useState(0)
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
   const [custos, setCustos] = useState<(LoteCusto & { categoria: CategoriaCusto })[]>([])
@@ -43,12 +44,13 @@ export default function CustosLotePage() {
     setLoading(true)
     const [{ data: loteData }, { data: itensData }, { data: catData }, { data: custosData }] = await Promise.all([
       supabase.from('lotes').select('*').eq('id', params.id).single(),
-      supabase.from('lote_itens').select('quantidade').eq('lote_id', params.id),
+      supabase.from('lote_itens').select('*, produto:produtos(*)').eq('lote_id', params.id).order('created_at'),
       supabase.from('categorias_custo').select('*').eq('ativo', true).order('nome'),
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)').eq('lote_id', params.id).order('created_at'),
     ])
 
     setLote(loteData as Lote)
+    setItens((itensData ?? []) as (LoteItem & { produto: Produto })[])
     setTotalUnidades((itensData ?? []).reduce((s, i) => s + i.quantidade, 0))
     setCategorias((catData ?? []) as CategoriaCusto[])
     setCustos((custosData ?? []) as (LoteCusto & { categoria: CategoriaCusto })[])
@@ -114,6 +116,22 @@ export default function CustosLotePage() {
         <h1 className="text-2xl font-semibold tracking-tight">Custos do {lote?.codigo}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">{lote?.fornecedor} · {totalUnidades} unidades</p>
       </div>
+
+      {itens.length > 0 && (
+        <div className="rounded-lg border border-border p-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Produtos do lote</p>
+          {itens.map((i) => (
+            <div key={i.id} className="flex items-center justify-between text-sm py-1">
+              <span>{i.produto?.nome ?? '—'}</span>
+              <div className="flex items-center gap-3 text-muted-foreground">
+                <span>{i.quantidade} un.</span>
+                <span>{formatCurrency(i.custo_unitario ?? 0)}/un</span>
+                <span className="font-medium text-foreground">{formatCurrency((i.custo_unitario ?? 0) * i.quantidade)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-lg border border-border p-4 space-y-4">
         <div className="space-y-2">
