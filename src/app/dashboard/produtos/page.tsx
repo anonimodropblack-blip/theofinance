@@ -23,7 +23,7 @@ import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { calcularProjecao } from '@/lib/produtos-projecao'
-import { COR_CUSTO, COR_FATURAMENTO, COR_LUCRO, corMargem } from '@/lib/cores'
+import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
 import type { Configuracao, FaixaLogisticaFba, Produto } from '@/types'
 
@@ -149,13 +149,13 @@ export default function ProdutosPage() {
           <CardHeader>
             <CardTitle className="text-muted-foreground text-xs font-normal">Lucro/Mês (todos ativos)</CardTitle>
           </CardHeader>
-          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(totais.lucroMes)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${corSinal(totais.lucroMes)}`}>{formatCurrency(totais.lucroMes)}</CardContent>
         </Card>
         <Card size="sm">
           <CardHeader>
             <CardTitle className="text-muted-foreground text-xs font-normal">Lucro Total (todos ativos)</CardTitle>
           </CardHeader>
-          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(totais.lucroTotal)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${corSinal(totais.lucroTotal)}`}>{formatCurrency(totais.lucroTotal)}</CardContent>
         </Card>
       </div>
 
@@ -198,10 +198,10 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Logística FBA</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Margem %</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Líquido/Unid.</TableHead>
-                <TableHead className="whitespace-nowrap">Sugestão de Preço</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Vendas/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro/Mês</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Total</TableHead>
+                <TableHead className="whitespace-nowrap">Sugestão de Preço</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -210,6 +210,7 @@ export default function ProdutosPage() {
               {filtrados.map((p) => {
                 const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, lucroTotal, precoSugerido } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
+                const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 return (
                 <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => abrirEdicao(p)}>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.sku ?? '—'}</TableCell>
@@ -218,26 +219,26 @@ export default function ProdutosPage() {
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.formula ?? '—'}</TableCell>
                   <TableCell className="text-muted-foreground whitespace-nowrap">{p.tipo ?? '—'}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.qtd_minima ?? '—'}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>{formatCurrency(p.preco_custo_unitario)}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>{formatCurrency(precoTotal)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(p.preco_custo_unitario)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>{formatCurrency(p.preco_venda)}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
                   </TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorImposto)} <span className="text-xs">({formatPct(p.preco_venda != null ? impostoPercentual : null)})</span>
                   </TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_CUSTO}`}>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {pesoFaltando ? <span className="text-amber-600 dark:text-amber-500">sem peso</span> : formatCurrency(valorLogistica)}
                   </TableCell>
-                  <TableCell className={`text-right whitespace-nowrap font-medium ${corMargem(margemPct, margemMinimaPercentual)}`}>
+                  <TableCell className={`text-right whitespace-nowrap font-medium ${corLinha}`}>
                     {formatPct(margemPct)}
                   </TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.vendas_mes ?? '—'}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroMes)}</TableCell>
-                  <TableCell className={`text-right whitespace-nowrap ${COR_LUCRO}`}>{formatCurrency(lucroTotal)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroMes)}</TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroTotal)}</TableCell>
                   <TableCell className="whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     {margemBaixa && precoSugerido != null ? (
                       <div className="flex items-center gap-2">

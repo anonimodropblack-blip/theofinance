@@ -12,7 +12,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Loader2, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { obterTarifaFba } from '@/lib/fba'
-import { COR_CUSTO, COR_FATURAMENTO, COR_LUCRO, corMargem } from '@/lib/cores'
+import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -206,21 +206,21 @@ export default function PrecificacaoPage() {
         <div className="rounded-lg border border-border p-4 space-y-1.5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Custo Produto</span>
-            <span className={COR_CUSTO}>{formatCurrency(custoProduto ?? 0)}</span>
+            <span>{formatCurrency(custoProduto ?? 0)}</span>
           </div>
           {custosLogistica.map((c) => (
             <div key={c.nome} className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{c.nome}</span>
-              <span className={COR_CUSTO}>{formatCurrency(c.valor)}</span>
+              <span>{formatCurrency(c.valor)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Imposto</span>
-            <span className={COR_CUSTO}>{formatPct((config?.imposto_percentual ?? 0))}</span>
+            <span>{formatPct((config?.imposto_percentual ?? 0))}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{usaTarifaFba ? 'Comissão' : 'Taxa Marketplace'}</span>
-            <span className={COR_CUSTO}>{formatPct((local?.taxa_marketplace ?? 0))}</span>
+            <span>{formatPct((local?.taxa_marketplace ?? 0))}</span>
           </div>
           {usaTarifaFba && (
             <div className="flex items-center justify-between text-sm">
@@ -230,7 +230,7 @@ export default function PrecificacaoPage() {
                   <CircleHelp className="h-3.5 w-3.5" /> cadastre o peso do produto
                 </span>
               ) : (
-                <span className={COR_CUSTO}>{formatCurrency(valorTarifaFba)}</span>
+                <span>{formatCurrency(valorTarifaFba)}</span>
               )}
             </div>
           )}
@@ -242,7 +242,7 @@ export default function PrecificacaoPage() {
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Lucro</span>
-              <span className={`font-medium ${COR_LUCRO}`}>{formatCurrency(lucro)}</span>
+              <span className={`font-medium ${corMargem(margem * 100, config?.margem_minima_percentual ?? 0)}`}>{formatCurrency(lucro)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Margem</span>

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Loader2, ArrowRight, Tags } from 'lucide-react'
 import { NovaMovimentacaoDialog } from '@/components/movimentacoes/nova-movimentacao-dialog'
-import { COR_CUSTO } from '@/lib/cores'
 import type { LocalEstoque, Movimentacao, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -106,7 +105,7 @@ export default function MovimentacoesPage() {
                   {m.quantidade_caixas != null && <span>{m.quantidade_caixas} caixa{m.quantidade_caixas === 1 ? '' : 's'}</span>}
                   {m.codigo_referencia && <span>Cód: {m.codigo_referencia}</span>}
                   {m.motorista && <span>Motorista: {m.motorista}</span>}
-                  {m.custo_frete != null && <span className={COR_CUSTO}>Frete: {formatCurrency(m.custo_frete)}</span>}
+                  {m.custo_frete != null && <span>Frete: {formatCurrency(m.custo_frete)}</span>}
                 </div>
               )}
             </div>

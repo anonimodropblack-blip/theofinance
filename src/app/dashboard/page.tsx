@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList } from 'lucide-react'
 import { calcularProjecao } from '@/lib/produtos-projecao'
-import { COR_CUSTO, COR_LUCRO, corMargem } from '@/lib/cores'
+import { corMargem } from '@/lib/cores'
 import type { CategoriaCusto, Configuracao, Estoque, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -288,7 +288,7 @@ export default function DashboardPage() {
               <TrendingUp className="h-3.5 w-3.5" /> Lucro Projetado
             </CardTitle>
           </CardHeader>
-          <CardContent className={`text-lg font-semibold ${COR_LUCRO}`}>{formatCurrency(kpis.lucroProjetado)}</CardContent>
+          <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>{formatCurrency(kpis.lucroProjetado)}</CardContent>
         </Card>
 
         <Card size="sm">
@@ -320,7 +320,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-lg font-semibold ${COR_CUSTO}`}>{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
+            <div className="text-lg font-semibold">{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
             <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
           </CardContent>
         </Card>
@@ -412,7 +412,7 @@ export default function DashboardPage() {
                         {formatPctNullable(margemPct)}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">{produto.vendas_mes ?? '—'}</TableCell>
-                      <TableCell className={`text-right ${COR_LUCRO}`}>{formatCurrencyNullable(lucroMes)}</TableCell>
+                      <TableCell className={`text-right ${corMargemProduto}`}>{formatCurrencyNullable(lucroMes)}</TableCell>
                     </TableRow>
                   )
                 })}
