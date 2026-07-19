@@ -24,11 +24,14 @@ export function calcularProjecao(p: Produto, impostoPercentual: number, comissao
 
   const lucroMes = lucroPorUnidade != null && p.vendas_mes != null ? lucroPorUnidade * p.vendas_mes : null
 
-  // Preço que atinge exatamente a margem mínima configurada, usando a logística da faixa atual como aproximação
+  // Preço que atinge a margem mínima configurada, usando a logística da faixa atual como aproximação
   // (a tarifa muda por faixa de preço, então o valor exato pode variar um pouco após aplicar).
+  // Arredonda pra CIMA (centavo acima) — arredondar pro centavo mais próximo às vezes arredonda
+  // pra baixo e a margem final fica uma fração abaixo do mínimo de novo, oferecendo "Aplicar"
+  // pra sempre com o mesmo valor sem nunca resolver.
   const denominador = 1 - (margemMinimaPercentual / 100) - (comissaoPercentual / 100) - (impostoPercentual / 100)
   const precoSugerido = p.preco_custo_unitario != null && denominador > 0
-    ? (p.preco_custo_unitario + (valorLogistica ?? 0)) / denominador
+    ? Math.ceil(((p.preco_custo_unitario + (valorLogistica ?? 0)) / denominador) * 100) / 100
     : null
 
   return { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, precoSugerido }

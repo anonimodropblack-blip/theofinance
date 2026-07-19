@@ -138,7 +138,7 @@ export default function PrecificacaoPage() {
   const margemOk = margem >= margemMinimaPct
 
   const denominador = 1 - margemMinimaPct - impostoPct - taxaPct
-  const precoSugerido = denominador > 0 ? (custoFixoTotal + valorTarifaFba) / denominador : null
+  const precoSugerido = denominador > 0 ? Math.ceil(((custoFixoTotal + valorTarifaFba) / denominador) * 100) / 100 : null
 
   if (loading) {
     return (
