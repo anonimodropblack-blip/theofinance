@@ -12,8 +12,9 @@ import {
 import { Label } from '@/components/ui/label'
 import { Loader2, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { obterTarifaFba } from '@/lib/fba'
+import { obterTaxaPorFaixa } from '@/lib/taxa-faixa-preco'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
+import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -30,6 +31,7 @@ export default function PrecificacaoPage() {
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
+  const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [produtoId, setProdutoId] = useState('')
   const [localId, setLocalId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -41,16 +43,18 @@ export default function PrecificacaoPage() {
 
   useEffect(() => {
     async function carregarBase() {
-      const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }] = await Promise.all([
+      const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }, { data: fxsPreco }] = await Promise.all([
         supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
         supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
         supabase.from('configuracoes').select('*').single(),
         supabase.from('faixas_logistica_fba').select('*'),
+        supabase.from('faixas_taxa_marketplace_preco').select('*'),
       ])
       setProdutos((prods ?? []) as Produto[])
       setLocais((locs ?? []) as LocalEstoque[])
       setConfig(cfg as Configuracao)
       setFaixasFba((fxs ?? []) as FaixaLogisticaFba[])
+      setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
       if (prods && prods.length > 0) setProdutoId(prods[0].id)
       if (locs && locs.length > 0) {
         const marketplace = locs.find((l) => l.tipo === 'marketplace')
@@ -118,13 +122,21 @@ export default function PrecificacaoPage() {
 
   const precoVenda = produto?.preco_venda ?? 0
   const impostoPct = (config?.imposto_percentual ?? 0) / 100
-  const taxaPct = (local?.taxa_marketplace ?? 0) / 100
   const margemMinimaPct = (config?.margem_minima_percentual ?? 0) / 100
+
+  const usaTaxaPorFaixa = local?.usa_taxa_por_faixa ?? false
+  const faixaPreco = usaTaxaPorFaixa && precoVenda > 0
+    ? obterTaxaPorFaixa(precoVenda, faixasPreco.filter((f) => f.local_id === local?.id))
+    : null
+  const semFaixaPreco = usaTaxaPorFaixa && precoVenda > 0 && faixaPreco == null
+  const valorFixoFaixa = faixaPreco?.valorFixo ?? 0
+
+  const taxaPct = usaTaxaPorFaixa ? (faixaPreco?.taxaPercentual ?? 0) / 100 : (local?.taxa_marketplace ?? 0) / 100
 
   const somaLogistica = custosLogistica.reduce((s, c) => s + c.valor, 0)
   const custoFixoTotal = (custoProduto ?? 0) + somaLogistica
   const valorImposto = precoVenda * impostoPct
-  const valorTaxa = precoVenda * taxaPct
+  const valorTaxa = precoVenda * taxaPct + valorFixoFaixa
 
   const usaTarifaFba = local?.usa_tarifa_fba && local?.fba_logistica_ativa
   const pesoFaltando = usaTarifaFba && produto?.peso_gramas == null
@@ -138,7 +150,7 @@ export default function PrecificacaoPage() {
   const margemOk = margem >= margemMinimaPct
 
   const denominador = 1 - margemMinimaPct - impostoPct - taxaPct
-  const precoSugerido = denominador > 0 ? Math.ceil(((custoFixoTotal + valorTarifaFba) / denominador) * 100) / 100 : null
+  const precoSugerido = denominador > 0 ? Math.ceil(((custoFixoTotal + valorTarifaFba + valorFixoFaixa) / denominador) * 100) / 100 : null
 
   if (loading) {
     return (
@@ -219,8 +231,8 @@ export default function PrecificacaoPage() {
             <span>{formatPct((config?.imposto_percentual ?? 0))}</span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{usaTarifaFba ? 'Comissão' : 'Taxa Marketplace'}</span>
-            <span>{formatPct((local?.taxa_marketplace ?? 0))}</span>
+            <span className="text-muted-foreground">{usaTarifaFba || usaTaxaPorFaixa ? 'Comissão' : 'Taxa Marketplace'}</span>
+            <span>{formatPct(usaTaxaPorFaixa ? taxaPct * 100 : (local?.taxa_marketplace ?? 0))}</span>
           </div>
           {usaTarifaFba && (
             <div className="flex items-center justify-between text-sm">
@@ -231,6 +243,18 @@ export default function PrecificacaoPage() {
                 </span>
               ) : (
                 <span>{formatCurrency(valorTarifaFba)}</span>
+              )}
+            </div>
+          )}
+          {usaTaxaPorFaixa && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Taxa Fixa</span>
+              {semFaixaPreco ? (
+                <span className="flex items-center gap-1 text-amber-600 dark:text-amber-500">
+                  <CircleHelp className="h-3.5 w-3.5" /> sem faixa cadastrada pra esse preço
+                </span>
+              ) : (
+                <span>{formatCurrency(valorFixoFaixa)}</span>
               )}
             </div>
           )}

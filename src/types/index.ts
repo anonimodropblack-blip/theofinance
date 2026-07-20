@@ -44,6 +44,7 @@ export interface LocalEstoque {
   ordem: number
   usa_tarifa_fba: boolean
   fba_logistica_ativa: boolean
+  usa_taxa_por_faixa: boolean
 }
 
 export interface FaixaLogisticaFba {
@@ -52,6 +53,16 @@ export interface FaixaLogisticaFba {
   peso_max: number | null
   preco_min: number
   preco_max: number | null
+  valor_fixo: number
+  created_at: string
+}
+
+export interface FaixaTaxaMarketplacePreco {
+  id: string
+  local_id: string
+  preco_min: number
+  preco_max: number | null
+  taxa_percentual: number
   valor_fixo: number
   created_at: string
 }

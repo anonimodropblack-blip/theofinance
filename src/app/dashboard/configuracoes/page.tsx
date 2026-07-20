@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, LocalEstoque } from '@/types'
+import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -35,6 +35,7 @@ export default function ConfiguracoesPage() {
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
+  const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
 
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
@@ -46,11 +47,12 @@ export default function ConfiguracoesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }, { data: fxsPreco }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
       supabase.from('faixas_logistica_fba').select('*'),
+      supabase.from('faixas_taxa_marketplace_preco').select('*'),
     ])
     setConfig(cfg as Configuracao)
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
@@ -63,6 +65,9 @@ export default function ConfiguracoesPage() {
         if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
         return a.preco_min - b.preco_min
       })
+    )
+    setFaixasPreco(
+      ((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[]).sort((a, b) => a.preco_min - b.preco_min)
     )
     setLoading(false)
   }, [supabase])
@@ -138,6 +143,36 @@ export default function ConfiguracoesPage() {
       return
     }
     setFaixasFba((prev) => prev.filter((f) => f.id !== faixa.id))
+  }
+
+  async function atualizarFaixaPreco(faixa: FaixaTaxaMarketplacePreco, campo: 'preco_min' | 'preco_max' | 'taxa_percentual' | 'valor_fixo', valorTexto: string) {
+    const semLimite = campo === 'preco_max' && valorTexto.trim() === ''
+    const valor = semLimite ? null : Number(valorTexto.replace(',', '.'))
+    if (!semLimite && Number.isNaN(valor)) return
+    const { error } = await supabase.from('faixas_taxa_marketplace_preco').update({ [campo]: valor }).eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao salvar faixa.')
+      return
+    }
+    carregar()
+  }
+
+  async function criarFaixaPreco(localId: string) {
+    const { error } = await supabase.from('faixas_taxa_marketplace_preco').insert({ local_id: localId, preco_min: 0, preco_max: null, taxa_percentual: 0, valor_fixo: 0 })
+    if (error) {
+      toast.error('Erro ao criar faixa.')
+      return
+    }
+    carregar()
+  }
+
+  async function excluirFaixaPreco(faixa: FaixaTaxaMarketplacePreco) {
+    const { error } = await supabase.from('faixas_taxa_marketplace_preco').delete().eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao excluir faixa.')
+      return
+    }
+    setFaixasPreco((prev) => prev.filter((f) => f.id !== faixa.id))
   }
 
   async function toggleAtivoLocal(local: LocalEstoque) {
@@ -240,7 +275,9 @@ export default function ConfiguracoesPage() {
                   <TableCell className="font-medium">{l.nome}</TableCell>
                   <TableCell className="text-muted-foreground">{l.tipo === 'marketplace' ? 'Marketplace' : 'Próprio'}</TableCell>
                   <TableCell className="text-right">
-                    {l.tipo === 'marketplace' ? (
+                    {l.usa_taxa_por_faixa ? (
+                      <span className="text-muted-foreground text-xs">Ver faixas abaixo</span>
+                    ) : l.tipo === 'marketplace' ? (
                       <Input
                         defaultValue={String(l.taxa_marketplace ?? 0)}
                         inputMode="decimal"
@@ -351,6 +388,81 @@ export default function ConfiguracoesPage() {
             <Plus className="h-4 w-4" />
             Nova faixa
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Faixas de Taxa por Preço</CardTitle>
+          <CardDescription>
+            Comissão % e valor fixo em R$ variam conforme a faixa de preço de venda — usado por Mercado Livre, Shopee e TikTok. Pesquisado em 20/07/2026, ajustar se o marketplace mudar a tabela.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {locais.filter((l) => l.usa_taxa_por_faixa).map((l) => (
+            <div key={l.id} className="space-y-2">
+              <p className="text-sm font-semibold">{l.nome}</p>
+              <div className="overflow-x-auto"><Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">Preço de</TableHead>
+                    <TableHead className="text-right">Preço até</TableHead>
+                    <TableHead className="text-right">Comissão (%)</TableHead>
+                    <TableHead className="text-right">Valor Fixo (R$)</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {faixasPreco.filter((f) => f.local_id === l.id).map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.preco_min)}
+                          inputMode="decimal"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaPreco(f, 'preco_min', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={f.preco_max == null ? '' : String(f.preco_max)}
+                          placeholder="Sem limite"
+                          inputMode="decimal"
+                          className="w-24 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaPreco(f, 'preco_max', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.taxa_percentual)}
+                          inputMode="decimal"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaPreco(f, 'taxa_percentual', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.valor_fixo)}
+                          inputMode="decimal"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaPreco(f, 'valor_fixo', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixaPreco(f)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table></div>
+              <Button type="button" variant="outline" size="sm" onClick={() => criarFaixaPreco(l.id)}>
+                <Plus className="h-4 w-4" />
+                Nova faixa
+              </Button>
+            </div>
+          ))}
         </CardContent>
       </Card>
 
