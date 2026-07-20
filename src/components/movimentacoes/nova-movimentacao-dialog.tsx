@@ -32,9 +32,10 @@ type Props = {
   produtos: Produto[]
   locais: LocalEstoque[]
   onSaved: () => void
+  produtoInicial?: Produto | null
 }
 
-export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, onSaved }: Props) {
+export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, onSaved, produtoInicial = null }: Props) {
   const [supabase] = useState(() => createClient())
   const [tipo, setTipo] = useState<'envio' | 'ajuste'>('envio')
   const [produto, setProduto] = useState<Produto | null>(null)
@@ -52,7 +53,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
   useEffect(() => {
     if (!open) return
     setTipo('envio')
-    setProduto(null)
+    setProduto(produtoInicial)
     setOrigemId(locais.find((l) => l.tipo === 'proprio')?.id ?? '')
     setDestinoId('')
     setLocalId('')
@@ -62,7 +63,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
     setCodigoReferencia('')
     setMotorista('')
     setCustoFrete('')
-  }, [open, locais])
+  }, [open, locais, produtoInicial])
 
   async function salvar() {
     if (!produto || !quantidade || Number(quantidade) === 0) {

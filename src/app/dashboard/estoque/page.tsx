@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Input } from '@/components/ui/input'
 import {
@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ProdutoDetalheSheet } from '@/components/estoque/produto-detalhe-sheet'
 import { Loader2, Search, Warehouse } from 'lucide-react'
 import type { LocalEstoque, Produto } from '@/types'
 
@@ -21,28 +22,34 @@ export default function EstoquePage() {
   const [mapa, setMapa] = useState<Record<string, Record<string, number>>>({})
   const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
+  const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
 
-  useEffect(() => {
-    async function carregar() {
-      const [{ data: prods }, { data: locs }, { data: estoque }] = await Promise.all([
-        supabase.from('produtos').select('*').order('nome'),
-        supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
-        supabase.from('estoque').select('produto_id, local_id, quantidade'),
-      ])
+  const carregar = useCallback(async () => {
+    const [{ data: prods }, { data: locs }, { data: estoque }] = await Promise.all([
+      supabase.from('produtos').select('*').order('nome'),
+      supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('estoque').select('produto_id, local_id, quantidade'),
+    ])
 
-      setProdutos((prods ?? []) as Produto[])
-      setLocais((locs ?? []) as LocalEstoque[])
+    setProdutos((prods ?? []) as Produto[])
+    setLocais((locs ?? []) as LocalEstoque[])
 
-      const m: Record<string, Record<string, number>> = {}
-      for (const e of estoque ?? []) {
-        if (!m[e.produto_id]) m[e.produto_id] = {}
-        m[e.produto_id][e.local_id] = e.quantidade
-      }
-      setMapa(m)
-      setLoading(false)
+    const m: Record<string, Record<string, number>> = {}
+    for (const e of estoque ?? []) {
+      if (!m[e.produto_id]) m[e.produto_id] = {}
+      m[e.produto_id][e.local_id] = e.quantidade
     }
-    carregar()
+    setMapa(m)
+    setLoading(false)
   }, [supabase])
+
+  useEffect(() => { carregar() }, [carregar])
+
+  function abrirDetalhe(produto: Produto) {
+    setProdutoSelecionado(produto)
+    setSheetOpen(true)
+  }
 
   const filtrados = produtos.filter((p) => !busca || p.nome.toLowerCase().includes(busca.toLowerCase()))
 
@@ -88,7 +95,7 @@ export default function EstoquePage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p) => (
-                <TableRow key={p.id}>
+                <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => abrirDetalhe(p)}>
                   <TableCell className="font-medium">{p.nome}</TableCell>
                   {locais.map((l) => (
                     <TableCell key={l.id} className="text-right text-muted-foreground">
@@ -102,6 +109,16 @@ export default function EstoquePage() {
           </Table>
         )}
       </div>
+
+      <ProdutoDetalheSheet
+        produto={produtoSelecionado}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        locais={locais}
+        produtos={produtos}
+        saldoPorLocal={produtoSelecionado ? mapa[produtoSelecionado.id] ?? {} : {}}
+        onMovimentacaoRegistrada={carregar}
+      />
     </div>
   )
 }
