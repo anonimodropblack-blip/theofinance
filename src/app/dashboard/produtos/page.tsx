@@ -19,15 +19,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { FabricanteInput } from '@/components/produtos/fabricante-input'
 import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celula-editavel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
 
 const TIPOS_PRODUTO: readonly TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
@@ -101,8 +109,12 @@ export default function ProdutosPage() {
   const [produtos, setProdutos] = useState<ProdutoComEstoque[]>([])
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
-  const [comissaoPercentual, setComissaoPercentual] = useState(0)
+  const [locais, setLocais] = useState<LocalEstoque[]>([])
+  const [localSelecionadoId, setLocalSelecionadoId] = useState('')
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
+  const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
+  const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
+  const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -110,12 +122,15 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: fxsFba }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
-      supabase.from('locais_estoque').select('*').eq('usa_tarifa_fba', true),
+      supabase.from('locais_estoque').select('*').eq('tipo', 'marketplace').eq('ativo', true).order('ordem'),
       supabase.from('faixas_logistica_fba').select('*'),
+      supabase.from('faixas_taxa_marketplace_preco').select('*'),
+      supabase.from('lote_itens').select('*, lote:lotes(*)'),
+      supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
     ])
 
     if (!error && data) {
@@ -131,13 +146,18 @@ export default function ProdutosPage() {
     }
     setFabricantes((fabs ?? []) as Fabricante[])
     setConfig(cfg as Configuracao)
-    setComissaoPercentual(locs?.[0]?.taxa_marketplace ?? 0)
+    const locaisCarregados = (locs ?? []) as LocalEstoque[]
+    setLocais(locaisCarregados)
+    setLocalSelecionadoId((atual) => atual || locaisCarregados[0]?.id || '')
     setFaixasFba(
       ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
         if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
         return a.preco_min - b.preco_min
       })
     )
+    setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
+    setLoteItens((itens ?? []) as LoteItemComLote[])
+    setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
     setLoading(false)
   }, [supabase])
 
@@ -150,18 +170,21 @@ export default function ProdutosPage() {
 
   const impostoPercentual = config?.imposto_percentual ?? 0
   const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+  const localSelecionado = locais.find((l) => l.id === localSelecionadoId) ?? null
+  const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
+  const labelColunaExtra = localSelecionado?.usa_tarifa_fba ? 'Logística FBA' : localSelecionado?.usa_taxa_por_faixa ? 'Taxa Fixa' : '—'
 
   const totais = useMemo(() => {
     let lucroMes = 0
     let lucroTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
     }
     return { lucroMes, lucroTotal }
-  }, [produtos, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba])
+  }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual])
 
   function abrirNovo() {
     setEditando(null)
@@ -229,14 +252,30 @@ export default function ProdutosPage() {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="relative max-w-sm flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar produto ou fabricante..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-3 flex-wrap flex-1">
+          <div className="relative max-w-sm flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Pesquisar produto ou fabricante..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={localSelecionadoId}
+            onValueChange={(v) => setLocalSelecionadoId(v ?? '')}
+            items={Object.fromEntries(locais.map((l) => [l.id, l.nome]))}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Marketplace..." />
+            </SelectTrigger>
+            <SelectContent>
+              {locais.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <p className="text-xs text-muted-foreground">Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.</p>
       </div>
@@ -270,7 +309,7 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Imposto</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Logística FBA</TableHead>
+                <TableHead className="text-right whitespace-nowrap">{labelColunaExtra}</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Margem %</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Líquido/Unid.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Vendas/Mês</TableHead>
@@ -283,7 +322,7 @@ export default function ProdutosPage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p, index) => {
-                const { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
@@ -335,16 +374,25 @@ export default function ProdutosPage() {
                     />
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
-                    {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(p.preco_venda != null ? comissaoPercentual : null)})</span>
+                    {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(taxaPct)})</span>
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorImposto)} <span className="text-xs">({formatPct(p.preco_venda != null ? impostoPercentual : null)})</span>
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
-                    {pesoFaltando ? <span className="text-amber-600 dark:text-amber-500">sem peso</span> : formatCurrency(valorLogistica)}
+                    {pesoFaltando ? (
+                      <span className="text-amber-600 dark:text-amber-500">sem peso</span>
+                    ) : semFaixaPreco ? (
+                      <span className="text-amber-600 dark:text-amber-500">sem faixa</span>
+                    ) : (
+                      formatCurrency(valorExtra)
+                    )}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap font-medium ${corLinha}`}>
                     {formatPct(margemPct)}
+                    {margemPct != null && !usandoCustoReal && (
+                      <span className="text-[10px] text-muted-foreground font-normal ml-1" title="Sem lote cadastrado ainda — usando o custo estimado do cadastro, não o custo real de compra.">est.</span>
+                    )}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">

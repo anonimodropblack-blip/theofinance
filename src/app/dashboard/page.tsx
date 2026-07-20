@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/table'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag } from 'lucide-react'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import type { CategoriaCusto, Configuracao, Estoque, FaixaLogisticaFba, LocalEstoque, Lote, LoteCusto, LoteItem, Produto } from '@/types'
+import type { Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Lote, Produto } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -42,9 +43,6 @@ function formatData(iso: string) {
   return `${dia}/${mes}`
 }
 
-type LoteItemComLote = LoteItem & { lote: Lote }
-type LoteCustoComCategoria = LoteCusto & { categoria: CategoriaCusto }
-
 export default function DashboardPage() {
   const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
@@ -57,7 +55,7 @@ export default function DashboardPage() {
   const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
-  const [comissaoPercentual, setComissaoPercentual] = useState(0)
+  const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
 
   const [relatorioBusca, setRelatorioBusca] = useState('')
   const [relatorioOrdem, setRelatorioOrdem] = useState<OrdemColuna>('margem')
@@ -73,8 +71,8 @@ export default function DashboardPage() {
         { data: lts },
         { data: itens },
         { data: custos },
-        { data: locsFba },
         { data: fxsFba },
+        { data: fxsPreco },
       ] = await Promise.all([
         supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
         supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -83,8 +81,8 @@ export default function DashboardPage() {
         supabase.from('lotes').select('*').order('data', { ascending: false }),
         supabase.from('lote_itens').select('*, lote:lotes(*)'),
         supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
-        supabase.from('locais_estoque').select('*').eq('usa_tarifa_fba', true),
         supabase.from('faixas_logistica_fba').select('*'),
+        supabase.from('faixas_taxa_marketplace_preco').select('*'),
       ])
 
       setProdutos((prods ?? []) as Produto[])
@@ -94,7 +92,7 @@ export default function DashboardPage() {
       setLotes((lts ?? []) as Lote[])
       setLoteItens((itens ?? []) as LoteItemComLote[])
       setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
-      setComissaoPercentual(locsFba?.[0]?.taxa_marketplace ?? 0)
+      setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
       setFaixasFba(
         ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
           if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
@@ -229,9 +227,11 @@ export default function DashboardPage() {
   const relatorioProdutos = useMemo(() => {
     const impostoPercentual = config?.imposto_percentual ?? 0
     const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+    const localPadrao = locais.find((l) => l.usa_tarifa_fba) ?? locais.find((l) => l.tipo === 'marketplace') ?? null
+    const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
 
     const linhas = produtos.map((p) => {
-      const { margemPct, lucroMes } = calcularProjecao(p, impostoPercentual, comissaoPercentual, margemMinimaPercentual, faixasFba)
+      const { margemPct, lucroMes } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localPadrao, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
       return { produto: p, margemPct, lucroMes }
     })
 
@@ -247,7 +247,7 @@ export default function DashboardPage() {
     }
 
     return [...filtradas].sort((a, b) => (chave(b) - chave(a)) * (relatorioDesc ? 1 : -1))
-  }, [produtos, config, comissaoPercentual, faixasFba, relatorioBusca, relatorioOrdem, relatorioDesc])
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, relatorioBusca, relatorioOrdem, relatorioDesc])
 
   function ordenarPor(coluna: OrdemColuna) {
     if (relatorioOrdem === coluna) {

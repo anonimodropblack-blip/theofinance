@@ -1,38 +1,80 @@
-import { obterTarifaFba } from '@/lib/fba'
-import type { FaixaLogisticaFba, Produto } from '@/types'
+import { calcularPrecificacao } from '@/lib/precificacao'
+import type { CustoRealProduto } from '@/lib/custo-real'
+import type { FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto } from '@/types'
 
-// Projeção com os custos reais da Amazon (a mesma taxa e tarifa usadas na Precificação):
-// comissão % do nicho (Saúde e Cuidados Pessoais) + tarifa de logística FBA por peso/preço + imposto.
-// Não entra custo de lote (frete/embalagem) — isso já aparece com detalhe real na Precificação.
-export function calcularProjecao(p: Produto, impostoPercentual: number, comissaoPercentual: number, margemMinimaPercentual: number, faixasFba: FaixaLogisticaFba[]) {
+export type ProjecaoProduto = {
+  precoTotal: number | null
+  usandoCustoReal: boolean
+  valorComissao: number | null
+  taxaPct: number | null
+  valorImposto: number | null
+  valorExtra: number | null
+  labelExtra: 'Logística FBA' | 'Taxa Fixa' | null
+  pesoFaltando: boolean
+  semFaixaPreco: boolean
+  lucroPorUnidade: number | null
+  margemPct: number | null
+  lucroMes: number | null
+  precoSugerido: number | null
+}
+
+// Projeção de margem/lucro por produto pro marketplace selecionado. Usa o
+// custo real do lote mais recente quando existe (igual à Precificação); se o
+// produto ainda não tem lote, cai pro custo estimado digitado manualmente no
+// cadastro (usandoCustoReal = false avisa qual dos dois está em uso).
+export function calcularProjecao(
+  p: Produto,
+  custoReal: CustoRealProduto | null,
+  local: LocalEstoque | null,
+  faixasFba: FaixaLogisticaFba[],
+  faixasPreco: FaixaTaxaMarketplacePreco[],
+  impostoPercentual: number,
+  margemMinimaPercentual: number
+): ProjecaoProduto {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
     : null
 
-  const valorComissao = p.preco_venda != null ? p.preco_venda * (comissaoPercentual / 100) : null
-  const valorImposto = p.preco_venda != null ? p.preco_venda * (impostoPercentual / 100) : null
-  const pesoFaltando = p.preco_venda != null && p.peso_gramas == null
-  const valorLogistica = p.preco_venda != null && p.peso_gramas != null
-    ? obterTarifaFba(p.peso_gramas, p.preco_venda, faixasFba)
-    : null
+  const usandoCustoReal = custoReal != null
+  const custoFixoTotal = usandoCustoReal
+    ? custoReal.custoUnitario + custoReal.custosLogistica.reduce((s, c) => s + c.valor, 0)
+    : p.preco_custo_unitario
 
-  const lucroPorUnidade = p.preco_venda != null && p.preco_custo_unitario != null && valorComissao != null && valorImposto != null
-    ? p.preco_venda - p.preco_custo_unitario - valorComissao - valorImposto - (valorLogistica ?? 0)
-    : null
+  if (p.preco_venda == null || custoFixoTotal == null) {
+    return {
+      precoTotal, usandoCustoReal,
+      valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
+      pesoFaltando: false, semFaixaPreco: false,
+      lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null,
+    }
+  }
 
-  const margemPct = lucroPorUnidade != null && p.preco_venda ? (lucroPorUnidade / p.preco_venda) * 100 : null
+  const r = calcularPrecificacao({
+    precoVenda: p.preco_venda,
+    pesoGramas: p.peso_gramas,
+    custoFixoTotal,
+    local,
+    faixasFba,
+    faixasPreco,
+    impostoPercentual,
+    margemMinimaPercentual,
+  })
 
-  const lucroMes = lucroPorUnidade != null && p.vendas_mes != null ? lucroPorUnidade * p.vendas_mes : null
+  const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
+  const valorExtra = r.usaTarifaFba ? r.valorTarifaFba : r.usaTaxaPorFaixa ? r.valorFixoFaixa : null
+  const lucroMes = p.vendas_mes != null ? r.lucro * p.vendas_mes : null
 
-  // Preço que atinge a margem mínima configurada, usando a logística da faixa atual como aproximação
-  // (a tarifa muda por faixa de preço, então o valor exato pode variar um pouco após aplicar).
-  // Arredonda pra CIMA (centavo acima) — arredondar pro centavo mais próximo às vezes arredonda
-  // pra baixo e a margem final fica uma fração abaixo do mínimo de novo, oferecendo "Aplicar"
-  // pra sempre com o mesmo valor sem nunca resolver.
-  const denominador = 1 - (margemMinimaPercentual / 100) - (comissaoPercentual / 100) - (impostoPercentual / 100)
-  const precoSugerido = p.preco_custo_unitario != null && denominador > 0
-    ? Math.ceil(((p.preco_custo_unitario + (valorLogistica ?? 0)) / denominador) * 100) / 100
-    : null
-
-  return { precoTotal, valorComissao, valorImposto, valorLogistica, pesoFaltando, lucroPorUnidade, margemPct, lucroMes, precoSugerido }
+  return {
+    precoTotal, usandoCustoReal,
+    valorComissao: p.preco_venda * r.taxaPct,
+    taxaPct: r.taxaPct * 100,
+    valorImposto: r.valorImposto,
+    valorExtra, labelExtra,
+    pesoFaltando: r.pesoFaltando,
+    semFaixaPreco: r.semFaixaPreco,
+    lucroPorUnidade: r.lucro,
+    margemPct: r.margem * 100,
+    lucroMes,
+    precoSugerido: r.precoSugerido,
+  }
 }
