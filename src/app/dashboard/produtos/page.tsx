@@ -133,6 +133,7 @@ export default function ProdutosPage() {
   const [adsModoMassa, setAdsModoMassa] = useState<'percentual' | 'valor'>('percentual')
   const [adsValorMassa, setAdsValorMassa] = useState('')
   const [aplicandoAds, setAplicandoAds] = useState(false)
+  const [modoSelecao, setModoSelecao] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
 
@@ -427,7 +428,21 @@ export default function ProdutosPage() {
             </SelectContent>
           </Select>
         </div>
-        <p className="text-xs text-muted-foreground">Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.</p>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            size="sm"
+            variant={modoSelecao ? 'default' : 'outline'}
+            onClick={() => setModoSelecao((m) => !m)}
+          >
+            {modoSelecao ? 'Sair da seleção' : 'Selecionar'}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            {modoSelecao
+              ? 'Clique em qualquer linha pra selecionar/desselecionar.'
+              : 'Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.'}
+          </p>
+        </div>
       </div>
 
       {selecionados.size > 0 && (
@@ -580,8 +595,13 @@ export default function ProdutosPage() {
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 return (
-                <TableRow key={p.id} className="hover:bg-muted/50" data-selected={selecionados.has(p.id)}>
-                  <TableCell>
+                <TableRow
+                  key={p.id}
+                  className={`hover:bg-muted/50 ${modoSelecao ? 'cursor-pointer' : ''}`}
+                  data-selected={selecionados.has(p.id)}
+                  onClick={() => { if (modoSelecao) alternarSelecao(p.id) }}
+                >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={selecionados.has(p.id)} onCheckedChange={() => alternarSelecao(p.id)} />
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{index + 1}</TableCell>
