@@ -13,8 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CelulaEditavel } from '@/components/produtos/celula-editavel'
+import { ProdutoAutocomplete } from '@/components/produtos/produto-autocomplete'
+import { ajustarEstoque } from '@/lib/estoque'
 import { toast } from 'sonner'
-import { Loader2, Trash2, ArrowLeft } from 'lucide-react'
+import { Loader2, Trash2, ArrowLeft, Plus, X } from 'lucide-react'
 import Link from 'next/link'
 import type { CategoriaCusto, Lote, LoteCusto, LoteItem, Produto } from '@/types'
 
@@ -32,6 +35,8 @@ export default function CustosLotePage() {
   const [totalUnidades, setTotalUnidades] = useState(0)
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
   const [custos, setCustos] = useState<(LoteCusto & { categoria: CategoriaCusto })[]>([])
+  const [produtosAtivos, setProdutosAtivos] = useState<Produto[]>([])
+  const [casaLocalId, setCasaLocalId] = useState('')
   const [loading, setLoading] = useState(true)
 
   const [categoriaId, setCategoriaId] = useState('')
@@ -40,13 +45,20 @@ export default function CustosLotePage() {
   const [descricao, setDescricao] = useState('')
   const [salvando, setSalvando] = useState(false)
 
+  const [novoProduto, setNovoProduto] = useState<Produto | null>(null)
+  const [novaQuantidade, setNovaQuantidade] = useState('')
+  const [novoCustoUnitario, setNovoCustoUnitario] = useState('')
+  const [salvandoItem, setSalvandoItem] = useState(false)
+
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: loteData }, { data: itensData }, { data: catData }, { data: custosData }] = await Promise.all([
+    const [{ data: loteData }, { data: itensData }, { data: catData }, { data: custosData }, { data: produtosData }, { data: casa }] = await Promise.all([
       supabase.from('lotes').select('*').eq('id', params.id).single(),
       supabase.from('lote_itens').select('*, produto:produtos(*)').eq('lote_id', params.id),
       supabase.from('categorias_custo').select('*').eq('ativo', true).order('nome'),
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)').eq('lote_id', params.id).order('created_at'),
+      supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
+      supabase.from('locais_estoque').select('id').eq('nome', 'Casa').single(),
     ])
 
     setLote(loteData as Lote)
@@ -54,6 +66,8 @@ export default function CustosLotePage() {
     setTotalUnidades((itensData ?? []).reduce((s, i) => s + i.quantidade, 0))
     setCategorias((catData ?? []) as CategoriaCusto[])
     setCustos((custosData ?? []) as (LoteCusto & { categoria: CategoriaCusto })[])
+    setProdutosAtivos((produtosData ?? []) as Produto[])
+    setCasaLocalId(casa?.id ?? '')
     setLoading(false)
   }, [supabase, params.id])
 
@@ -88,6 +102,84 @@ export default function CustosLotePage() {
     carregar()
   }
 
+  async function renomearLote(campo: 'codigo' | 'fornecedor', novoValor: string) {
+    if (!novoValor.trim()) return
+    const { error } = await supabase.from('lotes').update({ [campo]: novoValor.trim() }).eq('id', params.id)
+    if (error) { toast.error('Erro ao salvar.'); return }
+    carregar()
+  }
+
+  async function atualizarQuantidadeItem(item: LoteItem, novaQtdTexto: string) {
+    const novaQtd = parseInt(novaQtdTexto, 10)
+    if (Number.isNaN(novaQtd) || novaQtd <= 0 || novaQtd === item.quantidade) return
+    const delta = novaQtd - item.quantidade
+    const { error } = await supabase.from('lote_itens').update({ quantidade: novaQtd }).eq('id', item.id)
+    if (error) { toast.error('Erro ao salvar quantidade.'); return }
+    if (casaLocalId) {
+      await supabase.from('movimentacoes').insert({
+        produto_id: item.produto_id, tipo: 'ajuste', quantidade: delta,
+        origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Correção de quantidade do lote',
+      })
+      await ajustarEstoque(supabase, item.produto_id, casaLocalId, delta)
+    }
+    toast.success('Quantidade atualizada')
+    carregar()
+  }
+
+  async function atualizarCustoUnitarioItem(item: LoteItem, novoValorTexto: string) {
+    const novoValorNumero = Number(novoValorTexto.replace(',', '.'))
+    if (Number.isNaN(novoValorNumero)) return
+    const { error } = await supabase.from('lote_itens').update({ custo_unitario: novoValorNumero }).eq('id', item.id)
+    if (error) { toast.error('Erro ao salvar custo.'); return }
+    toast.success('Custo atualizado')
+    carregar()
+  }
+
+  async function removerItem(item: LoteItem & { produto: Produto }) {
+    if (!window.confirm(`Remover "${item.produto?.nome}" deste lote?`)) return
+    const { error } = await supabase.from('lote_itens').delete().eq('id', item.id)
+    if (error) { toast.error('Erro ao remover produto.'); return }
+    if (casaLocalId) {
+      await supabase.from('movimentacoes').insert({
+        produto_id: item.produto_id, tipo: 'ajuste', quantidade: -item.quantidade,
+        origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Remoção de produto do lote',
+      })
+      await ajustarEstoque(supabase, item.produto_id, casaLocalId, -item.quantidade)
+    }
+    toast.success('Produto removido do lote')
+    carregar()
+  }
+
+  async function adicionarItem() {
+    if (!novoProduto || !novaQuantidade || Number(novaQuantidade) <= 0 || !novoCustoUnitario) {
+      toast.error('Selecione o produto e informe quantidade e custo unitário.')
+      return
+    }
+    setSalvandoItem(true)
+    const quantidade = Number(novaQuantidade)
+    const custoUnitario = Number(novoCustoUnitario.replace(',', '.'))
+
+    const { error } = await supabase.from('lote_itens').insert({
+      lote_id: params.id, produto_id: novoProduto.id, quantidade, custo_unitario: custoUnitario,
+    })
+    if (error) { toast.error('Erro ao adicionar produto.'); setSalvandoItem(false); return }
+
+    if (casaLocalId) {
+      await supabase.from('movimentacoes').insert({
+        produto_id: novoProduto.id, tipo: 'entrada_lote', quantidade,
+        destino_local_id: casaLocalId, lote_id: params.id, data: lote?.data,
+      })
+      await ajustarEstoque(supabase, novoProduto.id, casaLocalId, quantidade)
+    }
+
+    setSalvandoItem(false)
+    setNovoProduto(null)
+    setNovaQuantidade('')
+    setNovoCustoUnitario('')
+    toast.success('Produto adicionado ao lote')
+    carregar()
+  }
+
   // Resumo — converte tudo pra valor total (modo por_unidade * total de unidades do lote)
   const resumoPorCategoria = custos.reduce<Record<string, number>>((acc, c) => {
     const totalDoItem = c.modo === 'por_unidade' ? c.valor * totalUnidades : c.valor
@@ -113,25 +205,88 @@ export default function CustosLotePage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Lotes
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Custos do {lote?.codigo}</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{lote?.fornecedor} · {totalUnidades} unidades</p>
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          Custos do{' '}
+          <CelulaEditavel
+            valor={lote?.codigo ?? ''}
+            onSalvar={(v) => renomearLote('codigo', v)}
+          />
+        </h1>
+        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+          <CelulaEditavel
+            valor={lote?.fornecedor ?? ''}
+            onSalvar={(v) => renomearLote('fornecedor', v)}
+          />
+          <span>· {totalUnidades} unidades</span>
+        </p>
       </div>
 
-      {itens.length > 0 && (
-        <div className="rounded-lg border border-border p-4 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Produtos do lote</p>
-          {itens.map((i) => (
-            <div key={i.id} className="flex items-center justify-between text-sm py-1">
-              <span>{i.produto?.nome ?? '—'}</span>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <span>{i.quantidade} un.</span>
-                <span>{formatCurrency(i.custo_unitario ?? 0)}/un</span>
-                <span className="font-medium text-foreground">{formatCurrency((i.custo_unitario ?? 0) * i.quantidade)}</span>
-              </div>
+      <div className="rounded-lg border border-border p-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Produtos do lote</p>
+        {itens.map((i) => (
+          <div key={i.id} className="flex items-center justify-between text-sm py-1 gap-3">
+            <span className="flex-1 min-w-0 truncate">{i.produto?.nome ?? '—'}</span>
+            <div className="flex items-center gap-2 text-muted-foreground shrink-0">
+              <CelulaEditavel
+                valor={String(i.quantidade)}
+                exibir={`${i.quantidade} un.`}
+                align="right"
+                tipo="numeric"
+                onSalvar={(v) => atualizarQuantidadeItem(i, v)}
+              />
+              <CelulaEditavel
+                valor={String(i.custo_unitario ?? 0)}
+                exibir={`${formatCurrency(i.custo_unitario ?? 0)}/un`}
+                align="right"
+                tipo="decimal"
+                onSalvar={(v) => atualizarCustoUnitarioItem(i, v)}
+              />
+              <span className="font-medium text-foreground w-20 text-right">{formatCurrency((i.custo_unitario ?? 0) * i.quantidade)}</span>
+              <button type="button" onClick={() => removerItem(i)}>
+                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+              </button>
             </div>
-          ))}
+          </div>
+        ))}
+
+        <div className="flex items-end gap-2 pt-3 mt-2 border-t border-border">
+          <div className="flex-1 min-w-0">
+            {novoProduto ? (
+              <div className="h-8 flex items-center justify-between px-3 rounded-md border border-border bg-muted text-sm">
+                {novoProduto.nome}
+                <button type="button" onClick={() => setNovoProduto(null)}>
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            ) : (
+              <ProdutoAutocomplete
+                produtos={produtosAtivos}
+                onSelect={setNovoProduto}
+                excludeIds={itens.map((i) => i.produto_id)}
+                placeholder="Adicionar produto ao lote..."
+              />
+            )}
+          </div>
+          <Input
+            type="number"
+            min={1}
+            placeholder="Qtd."
+            className="w-20"
+            value={novaQuantidade}
+            onChange={(e) => setNovaQuantidade(e.target.value)}
+          />
+          <Input
+            inputMode="decimal"
+            placeholder="Custo/un"
+            className="w-24"
+            value={novoCustoUnitario}
+            onChange={(e) => setNovoCustoUnitario(e.target.value)}
+          />
+          <Button type="button" variant="secondary" onClick={adicionarItem} disabled={salvandoItem}>
+            {salvandoItem ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          </Button>
         </div>
-      )}
+      </div>
 
       <div className="rounded-lg border border-border p-4 space-y-4">
         <div className="space-y-2">
