@@ -166,6 +166,10 @@ export default function DashboardPage() {
     // faturamento bruto + lucro líquido projetado + margem média (ponderada por estoque, já líquida) + produtos abaixo da margem
     const totalVendasMesKpi = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
     const adsDiluidoPorUnidadeKpi = totalVendasMesKpi > 0 ? (config.gasto_ads_mensal ?? 0) / totalVendasMesKpi : 0
+    // estoque parado em "Casa" (próprio) ainda não tem taxa de marketplace real — projeta
+    // como se fosse vender no marketplace padrão, senão a conta ficava sem desconto de
+    // comissão/tarifa nenhum pra tudo que ainda está em casa esperando envio.
+    const localPadraoKpi = locais.find((l) => l.usa_tarifa_fba) ?? locais.find((l) => l.tipo === 'marketplace') ?? null
 
     let faturamentoBruto = 0
     let lucroProjetado = 0
@@ -182,7 +186,8 @@ export default function DashboardPage() {
       faturamentoBruto += produto.preco_venda * e.quantidade
       if (custoFixoTotal == null) continue
 
-      const local = localPorId.get(e.local_id) ?? null
+      const localReal = localPorId.get(e.local_id) ?? null
+      const local = localReal?.tipo === 'marketplace' ? localReal : localPadraoKpi
       const usandoAdsDiluidoKpi = produto.ads_modo == null && adsDiluidoPorUnidadeKpi > 0
       const r = calcularPrecificacao({
         precoVenda: produto.preco_venda,
