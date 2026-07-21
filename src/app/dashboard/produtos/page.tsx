@@ -37,9 +37,8 @@ import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemC
 import { ajustarEstoque } from '@/lib/estoque'
 import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, UnidadeEmbalagem } from '@/types'
 
-const TIPOS_PRODUTO: readonly TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
 const ADS_MODOS = ['percentual', 'valor'] as const
@@ -577,12 +576,9 @@ export default function ProdutosPage() {
                 <TableHead className="whitespace-nowrap">Composição / Dosagem</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Qtd. Embalagem</TableHead>
                 <TableHead className="whitespace-nowrap">Unidade</TableHead>
-                <TableHead className="whitespace-nowrap">Tipo</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Peso (g)</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Qtd. Mín.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço/Und.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Custo Real (Lote)</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Preço Total</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Estoque</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
@@ -604,7 +600,7 @@ export default function ProdutosPage() {
             <TableBody>
               {filtrados.map((p, index) => {
                 const custoReal = custoRealPorProduto[p.id] ?? null
-                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
@@ -634,14 +630,8 @@ export default function ProdutosPage() {
                   <TableCell className="whitespace-nowrap">
                     <CelulaSelectEditavel valor={p.unidade_embalagem ?? ''} opcoes={UNIDADES_EMBALAGEM} onSalvar={(v) => salvarCampo(p.id, 'unidade_embalagem', v || null)} />
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <CelulaSelectEditavel valor={p.tipo ?? ''} opcoes={TIPOS_PRODUTO} onSalvar={(v) => salvarCampo(p.id, 'tipo', v || null)} />
-                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     <CelulaEditavel valor={p.peso_gramas != null ? String(p.peso_gramas) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'peso_gramas', paraInteiro(v))} />
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <CelulaEditavel valor={p.qtd_minima != null ? String(p.qtd_minima) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'qtd_minima', paraInteiro(v))} />
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     <CelulaEditavel
@@ -663,7 +653,6 @@ export default function ProdutosPage() {
                       <span className="text-muted-foreground text-xs">sem lote</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>
                     <CelulaEditavel
