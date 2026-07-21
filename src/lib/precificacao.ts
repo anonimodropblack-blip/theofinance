@@ -12,6 +12,7 @@ export type ResultadoPrecificacao = {
   usaTaxaPorFaixa: boolean
   semFaixaPreco: boolean
   valorFixoFaixa: number
+  valorAds: number
   lucro: number
   margem: number
   margemOk: boolean
@@ -31,10 +32,14 @@ export function calcularPrecificacao(params: {
   faixasPreco: FaixaTaxaMarketplacePreco[]
   impostoPercentual: number
   margemMinimaPercentual: number
+  adsModo?: 'percentual' | 'valor' | null
+  adsValor?: number | null
 }): ResultadoPrecificacao {
-  const { precoVenda, pesoGramas, custoFixoTotal, local, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual } = params
+  const { precoVenda, pesoGramas, custoFixoTotal, local, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsModo, adsValor } = params
   const impostoPct = impostoPercentual / 100
   const margemMinimaPct = margemMinimaPercentual / 100
+  const adsPct = adsModo === 'percentual' ? (adsValor ?? 0) / 100 : 0
+  const valorAdsFixo = adsModo === 'valor' ? (adsValor ?? 0) : 0
 
   const usaTaxaPorFaixa = local?.usa_taxa_por_faixa ?? false
   const faixaPreco = usaTaxaPorFaixa && precoVenda > 0
@@ -55,19 +60,22 @@ export function calcularPrecificacao(params: {
     : null
   const valorTarifaFba = tarifaFba ?? 0
 
-  const lucro = precoVenda - custoFixoTotal - valorImposto - valorTaxa - valorTarifaFba
+  const valorAds = precoVenda * adsPct + valorAdsFixo
+
+  const lucro = precoVenda - custoFixoTotal - valorImposto - valorTaxa - valorTarifaFba - valorAds
   const margem = precoVenda > 0 ? lucro / precoVenda : 0
   const margemOk = margem >= margemMinimaPct
 
-  const denominador = 1 - margemMinimaPct - impostoPct - taxaPct
+  const denominador = 1 - margemMinimaPct - impostoPct - taxaPct - adsPct
   const precoSugerido = denominador > 0
-    ? Math.ceil(((custoFixoTotal + valorTarifaFba + valorFixoFaixa) / denominador) * 100) / 100
+    ? Math.ceil(((custoFixoTotal + valorTarifaFba + valorFixoFaixa + valorAdsFixo) / denominador) * 100) / 100
     : null
 
   return {
     custoFixoTotal, valorImposto, taxaPct,
     usaTarifaFba, pesoFaltando, valorTarifaFba,
     usaTaxaPorFaixa, semFaixaPreco, valorFixoFaixa,
+    valorAds,
     lucro, margem, margemOk, precoSugerido,
   }
 }

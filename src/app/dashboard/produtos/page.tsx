@@ -31,8 +31,10 @@ import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { FabricanteInput } from '@/components/produtos/fabricante-input'
 import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celula-editavel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
+import { ajustarEstoque } from '@/lib/estoque'
 import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
 import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
@@ -40,6 +42,7 @@ import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplaceP
 const TIPOS_PRODUTO: readonly TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
+const ADS_MODOS = ['percentual', 'valor'] as const
 
 type ProdutoComEstoque = Produto & { estoqueTotal: number }
 
@@ -110,6 +113,7 @@ export default function ProdutosPage() {
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [locais, setLocais] = useState<LocalEstoque[]>([])
+  const [locaisEstoque, setLocaisEstoque] = useState<LocalEstoque[]>([])
   const [localSelecionadoId, setLocalSelecionadoId] = useState('')
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
@@ -119,14 +123,22 @@ export default function ProdutosPage() {
   const [busca, setBusca] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Produto | null>(null)
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [pctPreco, setPctPreco] = useState('')
+  const [aplicandoPreco, setAplicandoPreco] = useState(false)
+  const [localEstoqueMassaId, setLocalEstoqueMassaId] = useState('')
+  const [deltaEstoque, setDeltaEstoque] = useState('')
+  const [aplicandoEstoque, setAplicandoEstoque] = useState(false)
+  const [aplicandoStatus, setAplicandoStatus] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').eq('tipo', 'marketplace').eq('ativo', true).order('ordem'),
+      supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('lote_itens').select('*, lote:lotes(*)'),
@@ -149,6 +161,9 @@ export default function ProdutosPage() {
     const locaisCarregados = (locs ?? []) as LocalEstoque[]
     setLocais(locaisCarregados)
     setLocalSelecionadoId((atual) => atual || locaisCarregados[0]?.id || '')
+    const locaisEstoqueCarregados = (locsEstoque ?? []) as LocalEstoque[]
+    setLocaisEstoque(locaisEstoqueCarregados)
+    setLocalEstoqueMassaId((atual) => atual || locaisEstoqueCarregados[0]?.id || '')
     setFaixasFba(
       ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
         if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
@@ -226,6 +241,92 @@ export default function ProdutosPage() {
     carregar()
   }
 
+  function alternarSelecao(id: string) {
+    setSelecionados((prev) => {
+      const novo = new Set(prev)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
+    })
+  }
+
+  function alternarSelecaoTodos() {
+    setSelecionados((prev) => {
+      const todosSelecionados = filtrados.length > 0 && filtrados.every((p) => prev.has(p.id))
+      if (todosSelecionados) return new Set()
+      return new Set(filtrados.map((p) => p.id))
+    })
+  }
+
+  async function aplicarPrecoEmMassa() {
+    const pct = paraNumero(pctPreco)
+    if (pct == null || pct === 0) {
+      toast.error('Informe o percentual de variação.')
+      return
+    }
+    const alvo = produtos.filter((p) => selecionados.has(p.id) && p.preco_venda != null)
+    if (alvo.length === 0) {
+      toast.error('Nenhum produto selecionado tem preço de venda cadastrado.')
+      return
+    }
+    setAplicandoPreco(true)
+    await Promise.all(
+      alvo.map((p) => {
+        const novoPreco = Math.round(p.preco_venda! * (1 + pct / 100) * 100) / 100
+        return supabase.from('produtos').update({ preco_venda: novoPreco }).eq('id', p.id)
+      })
+    )
+    setAplicandoPreco(false)
+    setPctPreco('')
+    toast.success(`Preço ajustado em ${alvo.length} produto(s)`)
+    carregar()
+  }
+
+  async function aplicarEstoqueEmMassa() {
+    const delta = paraInteiro(deltaEstoque)
+    if (!localEstoqueMassaId) {
+      toast.error('Selecione o local.')
+      return
+    }
+    if (delta == null || delta === 0) {
+      toast.error('Informe a quantidade (use negativo pra remover).')
+      return
+    }
+    const ids = [...selecionados]
+    if (ids.length === 0) return
+    setAplicandoEstoque(true)
+    await Promise.all(
+      ids.map(async (id) => {
+        await supabase.from('movimentacoes').insert({
+          produto_id: id,
+          tipo: 'ajuste',
+          quantidade: delta,
+          origem_local_id: localEstoqueMassaId,
+          observacao: 'Ajuste em massa',
+        })
+        await ajustarEstoque(supabase, id, localEstoqueMassaId, delta)
+      })
+    )
+    setAplicandoEstoque(false)
+    setDeltaEstoque('')
+    toast.success(`Estoque ajustado em ${ids.length} produto(s)`)
+    carregar()
+  }
+
+  async function aplicarStatusEmMassa(novoStatus: 'ativo' | 'inativo') {
+    const ids = [...selecionados]
+    if (ids.length === 0) return
+    setAplicandoStatus(true)
+    const { error } = await supabase.from('produtos').update({ status: novoStatus }).in('id', ids)
+    setAplicandoStatus(false)
+    if (error) {
+      toast.error('Erro ao atualizar status.')
+      return
+    }
+    toast.success(`Status atualizado em ${ids.length} produto(s)`)
+    carregar()
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -280,6 +381,65 @@ export default function ProdutosPage() {
         <p className="text-xs text-muted-foreground">Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.</p>
       </div>
 
+      {selecionados.size > 0 && (
+        <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center gap-4 flex-wrap">
+          <span className="text-sm font-medium whitespace-nowrap">{selecionados.size} selecionado(s)</span>
+
+          <div className="flex items-center gap-1.5">
+            <Input
+              inputMode="decimal"
+              placeholder="% preço"
+              className="h-8 w-24"
+              value={pctPreco}
+              onChange={(e) => setPctPreco(e.target.value)}
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={aplicarPrecoEmMassa} disabled={aplicandoPreco}>
+              {aplicandoPreco ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Aplicar % no preço'}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={localEstoqueMassaId}
+              onValueChange={(v) => setLocalEstoqueMassaId(v ?? '')}
+              items={Object.fromEntries(locaisEstoque.map((l) => [l.id, l.nome]))}
+            >
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue placeholder="Local..." />
+              </SelectTrigger>
+              <SelectContent>
+                {locaisEstoque.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              placeholder="Qtd. (+/-)"
+              className="h-8 w-28"
+              value={deltaEstoque}
+              onChange={(e) => setDeltaEstoque(e.target.value)}
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={aplicarEstoqueEmMassa} disabled={aplicandoEstoque}>
+              {aplicandoEstoque ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ajustar estoque'}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button type="button" size="sm" variant="outline" disabled={aplicandoStatus} onClick={() => aplicarStatusEmMassa('ativo')}>
+              Marcar ativo
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={aplicandoStatus} onClick={() => aplicarStatusEmMassa('inativo')}>
+              Marcar inativo
+            </Button>
+          </div>
+
+          <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={() => setSelecionados(new Set())}>
+            Limpar seleção
+          </Button>
+        </div>
+      )}
+
       <div className="rounded-lg border border-border overflow-auto max-h-[70vh]">
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -294,6 +454,12 @@ export default function ProdutosPage() {
           <Table>
             <TableHeader className="sticky top-0 z-20 bg-background">
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={filtrados.length > 0 && filtrados.every((p) => selecionados.has(p.id))}
+                    onCheckedChange={alternarSelecaoTodos}
+                  />
+                </TableHead>
                 <TableHead className="whitespace-nowrap">ID</TableHead>
                 <TableHead className="whitespace-nowrap">Fabricante</TableHead>
                 <TableHead className="whitespace-nowrap sticky left-0 z-30 bg-background">Produto</TableHead>
@@ -304,12 +470,16 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Peso (g)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Qtd. Mín.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço/Und.</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Custo Real (Lote)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço Total</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Estoque</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Imposto</TableHead>
                 <TableHead className="text-right whitespace-nowrap">{labelColunaExtra}</TableHead>
+                <TableHead className="whitespace-nowrap">Ads: Modo</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Ads: Valor</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Custo Ads</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Margem %</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Lucro Líquido/Unid.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Vendas/Mês</TableHead>
@@ -322,12 +492,16 @@ export default function ProdutosPage() {
             </TableHeader>
             <TableBody>
               {filtrados.map((p, index) => {
-                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
+                const custoReal = custoRealPorProduto[p.id] ?? null
+                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 return (
-                <TableRow key={p.id} className="hover:bg-muted/50">
+                <TableRow key={p.id} className="hover:bg-muted/50" data-selected={selecionados.has(p.id)}>
+                  <TableCell>
+                    <Checkbox checked={selecionados.has(p.id)} onCheckedChange={() => alternarSelecao(p.id)} />
+                  </TableCell>
                   <TableCell className="whitespace-nowrap text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <CelulaFabricante valor={p.fabricante ?? ''} fabricantes={fabricantes} onSalvar={(v) => salvarCampo(p.id, 'fabricante', v || null)} />
@@ -362,6 +536,17 @@ export default function ProdutosPage() {
                       onSalvar={(v) => salvarCampo(p.id, 'preco_custo_unitario', paraNumero(v))}
                     />
                   </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    {custoReal ? (
+                      <span
+                        title={custoReal.custosLogistica.length > 0 ? `Compra: ${formatCurrency(custoReal.custoUnitario)}\n${custoReal.custosLogistica.map((c) => `${c.nome}: ${formatCurrency(c.valor)}`).join('\n')}` : `Compra: ${formatCurrency(custoReal.custoUnitario)}`}
+                      >
+                        {formatCurrency(custoReal.custoUnitario + custoReal.custosLogistica.reduce((s, c) => s + c.valor, 0))}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">sem lote</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right whitespace-nowrap">{formatCurrency(precoTotal)}</TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>
@@ -388,6 +573,24 @@ export default function ProdutosPage() {
                       formatCurrency(valorExtra)
                     )}
                   </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <CelulaSelectEditavel
+                      valor={p.ads_modo ?? ''}
+                      opcoes={ADS_MODOS}
+                      exibir={p.ads_modo ? (p.ads_modo === 'percentual' ? '%' : 'R$') : '—'}
+                      onSalvar={(v) => salvarCampo(p.id, 'ads_modo', v || null)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <CelulaEditavel
+                      valor={p.ads_valor != null ? String(p.ads_valor) : ''}
+                      exibir={p.ads_valor != null ? (p.ads_modo === 'percentual' ? formatPct(p.ads_valor) : formatCurrency(p.ads_valor)) : '—'}
+                      align="right"
+                      tipo="decimal"
+                      onSalvar={(v) => salvarCampo(p.id, 'ads_valor', paraNumero(v))}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{formatCurrency(valorAds)}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap font-medium ${corLinha}`}>
                     {formatPct(margemPct)}
                     {margemPct != null && !usandoCustoReal && (

@@ -44,7 +44,7 @@ export default function CustosLotePage() {
     setLoading(true)
     const [{ data: loteData }, { data: itensData }, { data: catData }, { data: custosData }] = await Promise.all([
       supabase.from('lotes').select('*').eq('id', params.id).single(),
-      supabase.from('lote_itens').select('*, produto:produtos(*)').eq('lote_id', params.id).order('created_at'),
+      supabase.from('lote_itens').select('*, produto:produtos(*)').eq('lote_id', params.id),
       supabase.from('categorias_custo').select('*').eq('ativo', true).order('nome'),
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)').eq('lote_id', params.id).order('created_at'),
     ])

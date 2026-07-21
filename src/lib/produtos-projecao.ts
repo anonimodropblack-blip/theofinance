@@ -10,6 +10,7 @@ export type ProjecaoProduto = {
   valorImposto: number | null
   valorExtra: number | null
   labelExtra: 'Logística FBA' | 'Taxa Fixa' | null
+  valorAds: number | null
   pesoFaltando: boolean
   semFaixaPreco: boolean
   lucroPorUnidade: number | null
@@ -44,6 +45,7 @@ export function calcularProjecao(
     return {
       precoTotal, usandoCustoReal,
       valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
+      valorAds: null,
       pesoFaltando: false, semFaixaPreco: false,
       lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null,
     }
@@ -58,6 +60,8 @@ export function calcularProjecao(
     faixasPreco,
     impostoPercentual,
     margemMinimaPercentual,
+    adsModo: p.ads_modo,
+    adsValor: p.ads_valor,
   })
 
   const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
@@ -70,6 +74,7 @@ export function calcularProjecao(
     taxaPct: r.taxaPct * 100,
     valorImposto: r.valorImposto,
     valorExtra, labelExtra,
+    valorAds: r.valorAds,
     pesoFaltando: r.pesoFaltando,
     semFaixaPreco: r.semFaixaPreco,
     lucroPorUnidade: r.lucro,

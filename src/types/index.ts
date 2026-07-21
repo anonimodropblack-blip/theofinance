@@ -18,6 +18,8 @@ export interface Produto {
   preco_custo_unitario: number | null
   vendas_mes: number | null
   peso_gramas: number | null
+  ads_modo: 'percentual' | 'valor' | null
+  ads_valor: number | null
   created_at: string
   updated_at: string
 }

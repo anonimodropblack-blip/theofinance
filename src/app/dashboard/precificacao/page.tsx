@@ -85,6 +85,8 @@ export default function PrecificacaoPage() {
     faixasPreco,
     impostoPercentual: config?.imposto_percentual ?? 0,
     margemMinimaPercentual: config?.margem_minima_percentual ?? 0,
+    adsModo: produto?.ads_modo,
+    adsValor: produto?.ads_valor,
   })
 
   if (loading) {
@@ -191,6 +193,14 @@ export default function PrecificacaoPage() {
               ) : (
                 <span>{formatCurrency(r.valorFixoFaixa)}</span>
               )}
+            </div>
+          )}
+          {produto?.ads_modo && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                Ads {produto.ads_modo === 'percentual' ? `(${formatPct(produto.ads_valor ?? 0)})` : ''}
+              </span>
+              <span>{formatCurrency(r.valorAds)}</span>
             </div>
           )}
 
