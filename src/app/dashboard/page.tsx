@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag } from 'lucide-react'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import type { Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Lote, Produto } from '@/types'
@@ -107,7 +108,6 @@ export default function DashboardPage() {
   const kpis = useMemo(() => {
     if (!config) return null
 
-    const impostoPct = (config.imposto_percentual ?? 0) / 100
     const margemMinimaPct = (config.margem_minima_percentual ?? 0) / 100
     const localPorId = new Map(locais.map((l) => [l.id, l]))
     const produtoPorId = new Map(produtos.map((p) => [p.id, p]))
@@ -163,7 +163,11 @@ export default function DashboardPage() {
       if (custo != null) estoqueValor += custo * e.quantidade
     }
 
-    // lucro projetado + margem média (ponderada por estoque) + produtos abaixo da margem
+    // faturamento bruto + lucro líquido projetado + margem média (ponderada por estoque, já líquida) + produtos abaixo da margem
+    const totalVendasMesKpi = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+    const adsDiluidoPorUnidadeKpi = totalVendasMesKpi > 0 ? (config.gasto_ads_mensal ?? 0) / totalVendasMesKpi : 0
+
+    let faturamentoBruto = 0
     let lucroProjetado = 0
     let margemPonderadaSoma = 0
     let pesoTotal = 0
@@ -173,20 +177,31 @@ export default function DashboardPage() {
       if (e.quantidade <= 0) continue
       const produto = produtoPorId.get(e.produto_id)
       const custoFixoTotal = custoAtualPorProduto.get(e.produto_id)
-      if (!produto || custoFixoTotal == null || produto.preco_venda == null) continue
+      if (!produto || produto.preco_venda == null) continue
 
-      const local = localPorId.get(e.local_id)
-      const taxaPct = local?.tipo === 'marketplace' ? (local.taxa_marketplace ?? 0) / 100 : 0
-      const precoVenda = produto.preco_venda
+      faturamentoBruto += produto.preco_venda * e.quantidade
+      if (custoFixoTotal == null) continue
 
-      const lucroUnit = precoVenda - custoFixoTotal - precoVenda * impostoPct - precoVenda * taxaPct
-      const margem = precoVenda > 0 ? lucroUnit / precoVenda : 0
+      const local = localPorId.get(e.local_id) ?? null
+      const usandoAdsDiluidoKpi = produto.ads_modo == null && adsDiluidoPorUnidadeKpi > 0
+      const r = calcularPrecificacao({
+        precoVenda: produto.preco_venda,
+        pesoGramas: produto.peso_gramas,
+        custoFixoTotal,
+        local,
+        faixasFba,
+        faixasPreco,
+        impostoPercentual: config.imposto_percentual ?? 0,
+        margemMinimaPercentual: config.margem_minima_percentual ?? 0,
+        adsModo: produto.ads_modo ?? (usandoAdsDiluidoKpi ? 'valor' : null),
+        adsValor: produto.ads_modo != null ? produto.ads_valor : adsDiluidoPorUnidadeKpi,
+      })
 
-      lucroProjetado += lucroUnit * e.quantidade
-      margemPonderadaSoma += margem * e.quantidade
+      lucroProjetado += r.lucro * e.quantidade
+      margemPonderadaSoma += r.margem * e.quantidade
       pesoTotal += e.quantidade
 
-      if (margem < margemMinimaPct) produtosAbaixo.add(produto.id)
+      if (r.margem < margemMinimaPct) produtosAbaixo.add(produto.id)
     }
 
     const margemMedia = pesoTotal > 0 ? margemPonderadaSoma / pesoTotal : 0
@@ -207,6 +222,7 @@ export default function DashboardPage() {
       investimentoTotal,
       estoqueUnidades,
       estoqueValor,
+      faturamentoBruto,
       lucroProjetado,
       margemMedia,
       temEstoqueComMargem: pesoTotal > 0,
@@ -214,7 +230,7 @@ export default function DashboardPage() {
       pedidosMes,
       ticketMedio,
     }
-  }, [config, locais, produtos, estoque, loteItens, loteCustos])
+  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco])
 
   const ultimosLotes = useMemo(() => {
     const qtdPorLote = new Map<string, number>()
@@ -300,7 +316,16 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <TrendingUp className="h-3.5 w-3.5" /> Lucro Projetado
+              <Receipt className="h-3.5 w-3.5" /> Faturamento Bruto
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.faturamentoBruto)}</CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <TrendingUp className="h-3.5 w-3.5" /> Lucro Líquido Projetado
             </CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>{formatCurrency(kpis.lucroProjetado)}</CardContent>
