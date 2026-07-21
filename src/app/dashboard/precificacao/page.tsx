@@ -10,6 +10,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 import { Loader2, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
@@ -37,6 +40,9 @@ export default function PrecificacaoPage() {
   const [produtoId, setProdutoId] = useState('')
   const [localId, setLocalId] = useState('')
   const [loading, setLoading] = useState(true)
+  const [editAdsModo, setEditAdsModo] = useState<'' | 'percentual' | 'valor'>('')
+  const [editAdsValor, setEditAdsValor] = useState('')
+  const [salvandoAds, setSalvandoAds] = useState(false)
 
   useEffect(() => {
     async function carregarBase() {
@@ -67,6 +73,28 @@ export default function PrecificacaoPage() {
   }, [supabase])
 
   const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
+
+  useEffect(() => {
+    const p = produtos.find((x) => x.id === produtoId) ?? null
+    setEditAdsModo(p?.ads_modo ?? '')
+    setEditAdsValor(p?.ads_valor != null ? String(p.ads_valor) : '')
+  }, [produtoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function salvarAds() {
+    if (!produtoId) return
+    setSalvandoAds(true)
+    const modo = editAdsModo || null
+    const valorNumero = modo ? Number(editAdsValor.replace(',', '.')) : null
+    const valor = valorNumero != null && Number.isNaN(valorNumero) ? null : valorNumero
+    const { error } = await supabase.from('produtos').update({ ads_modo: modo, ads_valor: valor }).eq('id', produtoId)
+    setSalvandoAds(false)
+    if (error) {
+      toast.error('Erro ao salvar Ads.')
+      return
+    }
+    setProdutos((prev) => prev.map((p) => (p.id === produtoId ? { ...p, ads_modo: modo, ads_valor: valor } : p)))
+    toast.success('Ads atualizado')
+  }
 
   const produto = produtos.find((p) => p.id === produtoId) ?? null
   const local = locais.find((l) => l.id === localId) ?? null
@@ -201,17 +229,43 @@ export default function PrecificacaoPage() {
               )}
             </div>
           )}
-          {adsModoEfetivo && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">
-                Ads {adsModoEfetivo === 'percentual' ? `(${formatPct(adsValorEfetivo ?? 0)})` : ''}
-                {usandoAdsDiluido && (
-                  <span className="text-[10px] ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">(dil.)</span>
-                )}
-              </span>
-              <span>{formatCurrency(r.valorAds)}</span>
+          <div className="flex items-center justify-between text-sm gap-2">
+            <span className="text-muted-foreground flex items-center whitespace-nowrap">
+              Ads
+              {usandoAdsDiluido && (
+                <span className="text-[10px] ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">(dil.)</span>
+              )}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <Select
+                value={editAdsModo}
+                onValueChange={(v) => setEditAdsModo((v ?? '') as '' | 'percentual' | 'valor')}
+                items={{ '': 'Auto (diluído)', percentual: '%', valor: 'R$' }}
+              >
+                <SelectTrigger className="w-[110px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Auto (diluído)</SelectItem>
+                  <SelectItem value="percentual">%</SelectItem>
+                  <SelectItem value="valor">R$</SelectItem>
+                </SelectContent>
+              </Select>
+              {editAdsModo && (
+                <Input
+                  inputMode="decimal"
+                  className="w-16 h-7 text-xs text-right"
+                  placeholder={editAdsModo === 'percentual' ? '%' : 'R$'}
+                  value={editAdsValor}
+                  onChange={(e) => setEditAdsValor(e.target.value)}
+                />
+              )}
+              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={salvarAds} disabled={salvandoAds}>
+                {salvandoAds ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Salvar'}
+              </Button>
+              <span className="text-right w-16">{formatCurrency(r.valorAds)}</span>
             </div>
-          )}
+          </div>
 
           <div className="pt-3 mt-2 border-t border-border space-y-1.5">
             <div className="flex items-center justify-between text-sm">
