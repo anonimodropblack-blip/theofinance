@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
@@ -47,6 +48,7 @@ function formatData(iso: string) {
 export default function DashboardPage() {
   const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
+  const [atualizando, setAtualizando] = useState(false)
 
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [locais, setLocais] = useState<LocalEstoque[]>([])
@@ -62,48 +64,53 @@ export default function DashboardPage() {
   const [relatorioOrdem, setRelatorioOrdem] = useState<OrdemColuna>('margem')
   const [relatorioDesc, setRelatorioDesc] = useState(true)
 
-  useEffect(() => {
-    async function carregar() {
-      const [
-        { data: prods },
-        { data: locs },
-        { data: cfg },
-        { data: est },
-        { data: lts },
-        { data: itens },
-        { data: custos },
-        { data: fxsFba },
-        { data: fxsPreco },
-      ] = await Promise.all([
-        supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
-        supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
-        supabase.from('configuracoes').select('*').single(),
-        supabase.from('estoque').select('*'),
-        supabase.from('lotes').select('*').order('data', { ascending: false }),
-        supabase.from('lote_itens').select('*, lote:lotes(*)'),
-        supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
-        supabase.from('faixas_logistica_fba').select('*'),
-        supabase.from('faixas_taxa_marketplace_preco').select('*'),
-      ])
+  const carregar = useCallback(async () => {
+    const [
+      { data: prods },
+      { data: locs },
+      { data: cfg },
+      { data: est },
+      { data: lts },
+      { data: itens },
+      { data: custos },
+      { data: fxsFba },
+      { data: fxsPreco },
+    ] = await Promise.all([
+      supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
+      supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('configuracoes').select('*').single(),
+      supabase.from('estoque').select('*'),
+      supabase.from('lotes').select('*').order('data', { ascending: false }),
+      supabase.from('lote_itens').select('*, lote:lotes(*)'),
+      supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
+      supabase.from('faixas_logistica_fba').select('*'),
+      supabase.from('faixas_taxa_marketplace_preco').select('*'),
+    ])
 
-      setProdutos((prods ?? []) as Produto[])
-      setLocais((locs ?? []) as LocalEstoque[])
-      setConfig(cfg as Configuracao)
-      setEstoque((est ?? []) as Estoque[])
-      setLotes((lts ?? []) as Lote[])
-      setLoteItens((itens ?? []) as LoteItemComLote[])
-      setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
-      setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
-      setFaixasFba(
-        ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
-          if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
-          return a.preco_min - b.preco_min
-        })
-      )
-      setLoading(false)
-    }
-    carregar()
+    setProdutos((prods ?? []) as Produto[])
+    setLocais((locs ?? []) as LocalEstoque[])
+    setConfig(cfg as Configuracao)
+    setEstoque((est ?? []) as Estoque[])
+    setLotes((lts ?? []) as Lote[])
+    setLoteItens((itens ?? []) as LoteItemComLote[])
+    setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
+    setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
+    setFaixasFba(
+      ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
+        if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
+        return a.preco_min - b.preco_min
+      })
+    )
+    setLoading(false)
   }, [supabase])
+
+  useEffect(() => { carregar() }, [carregar])
+
+  async function atualizar() {
+    setAtualizando(true)
+    await carregar()
+    setAtualizando(false)
+  }
 
   const kpis = useMemo(() => {
     if (!config) return null
@@ -291,7 +298,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <Button type="button" variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
+          <RefreshCw className={`h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
+          Atualizar
+        </Button>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card size="sm">
