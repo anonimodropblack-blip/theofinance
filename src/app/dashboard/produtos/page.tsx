@@ -130,6 +130,9 @@ export default function ProdutosPage() {
   const [deltaEstoque, setDeltaEstoque] = useState('')
   const [aplicandoEstoque, setAplicandoEstoque] = useState(false)
   const [aplicandoStatus, setAplicandoStatus] = useState(false)
+  const [adsModoMassa, setAdsModoMassa] = useState<'percentual' | 'valor'>('percentual')
+  const [adsValorMassa, setAdsValorMassa] = useState('')
+  const [aplicandoAds, setAplicandoAds] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
 
@@ -347,6 +350,26 @@ export default function ProdutosPage() {
     carregar()
   }
 
+  async function aplicarAdsEmMassa() {
+    const valor = paraNumero(adsValorMassa)
+    if (valor == null) {
+      toast.error('Informe o valor do Ads.')
+      return
+    }
+    const ids = [...selecionados]
+    if (ids.length === 0) return
+    setAplicandoAds(true)
+    const { error } = await supabase.from('produtos').update({ ads_modo: adsModoMassa, ads_valor: valor }).in('id', ids)
+    setAplicandoAds(false)
+    if (error) {
+      toast.error('Erro ao atualizar Ads.')
+      return
+    }
+    toast.success(`Ads atualizado em ${ids.length} produto(s)`)
+    setAdsValorMassa('')
+    carregar()
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -448,6 +471,32 @@ export default function ProdutosPage() {
             />
             <Button type="button" size="sm" variant="secondary" onClick={aplicarEstoqueEmMassa} disabled={aplicandoEstoque}>
               {aplicandoEstoque ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ajustar estoque'}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={adsModoMassa}
+              onValueChange={(v) => setAdsModoMassa((v ?? 'percentual') as 'percentual' | 'valor')}
+              items={{ percentual: '%', valor: 'R$' }}
+            >
+              <SelectTrigger className="w-[70px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentual">%</SelectItem>
+                <SelectItem value="valor">R$</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              inputMode="decimal"
+              placeholder="Ads"
+              className="h-8 w-20"
+              value={adsValorMassa}
+              onChange={(e) => setAdsValorMassa(e.target.value)}
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={aplicarAdsEmMassa} disabled={aplicandoAds}>
+              {aplicandoAds ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Aplicar Ads'}
             </Button>
           </div>
 
