@@ -40,6 +40,7 @@ export default function ConfiguracoesPage() {
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
   const [custoFixoMensal, setCustoFixoMensal] = useState('')
+  const [gastoAdsMensal, setGastoAdsMensal] = useState('')
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
@@ -58,6 +59,7 @@ export default function ConfiguracoesPage() {
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
     setMargemMinima(cfg ? String(cfg.margem_minima_percentual) : '')
     setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
+    setGastoAdsMensal(cfg ? String(cfg.gasto_ads_mensal) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
     setFaixasFba(
@@ -84,6 +86,7 @@ export default function ConfiguracoesPage() {
         imposto_percentual: Number(imposto.replace(',', '.')) || 0,
         margem_minima_percentual: Number(margemMinima.replace(',', '.')) || 0,
         custo_fixo_mensal: Number(custoFixoMensal.replace(',', '.')) || 0,
+        gasto_ads_mensal: Number(gastoAdsMensal.replace(',', '.')) || 0,
       })
       .eq('id', config.id)
     setSalvandoConfig(false)
@@ -229,7 +232,7 @@ export default function ConfiguracoesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={salvarConfig} className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="imposto">Imposto (%)</Label>
                 <Input id="imposto" inputMode="decimal" value={imposto} onChange={(e) => setImposto(e.target.value)} />
@@ -242,9 +245,14 @@ export default function ConfiguracoesPage() {
                 <Label htmlFor="custo_fixo_mensal">Custo fixo mensal (R$)</Label>
                 <Input id="custo_fixo_mensal" inputMode="decimal" placeholder="0,00" value={custoFixoMensal} onChange={(e) => setCustoFixoMensal(e.target.value)} />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="gasto_ads_mensal">Gasto com Ads no mês (R$)</Label>
+                <Input id="gasto_ads_mensal" inputMode="decimal" placeholder="0,00" value={gastoAdsMensal} onChange={(e) => setGastoAdsMensal(e.target.value)} />
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               Custo fixo mensal = assinaturas/mensalidades de marketplace (ex: Plano Profissional Amazon R$19/mês). Não entra na margem por produto, só aparece como referência no Dashboard.
+              Gasto com Ads no mês = total investido em anúncios, diluído automaticamente entre os produtos proporcional às vendas/mês de cada um — só é usado no produto se ele não tiver um Ads manual definido na tabela de Produtos.
             </p>
             <Button type="submit" disabled={salvandoConfig}>
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}

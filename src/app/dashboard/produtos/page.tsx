@@ -202,6 +202,8 @@ export default function ProdutosPage() {
   const impostoPercentual = config?.imposto_percentual ?? 0
   const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
   const localSelecionado = locais.find((l) => l.id === localSelecionadoId) ?? null
+  const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+  const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
   const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
   const labelColunaExtra = localSelecionado?.usa_tarifa_fba ? 'Logística FBA' : localSelecionado?.usa_taxa_por_faixa ? 'Taxa Fixa' : '—'
 
@@ -211,13 +213,13 @@ export default function ProdutosPage() {
     let brutoTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
+      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
       if (p.preco_venda != null) brutoTotal += p.preco_venda * p.estoqueTotal
     }
     return { lucroMes, lucroTotal, brutoTotal }
-  }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual])
+  }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
 
   function abrirNovo() {
     setEditando(null)
@@ -524,7 +526,7 @@ export default function ProdutosPage() {
             <TableBody>
               {filtrados.map((p, index) => {
                 const custoReal = custoRealPorProduto[p.id] ?? null
-                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
+                const { precoTotal, usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
@@ -621,7 +623,12 @@ export default function ProdutosPage() {
                       onSalvar={(v) => salvarCampo(p.id, 'ads_valor', paraNumero(v))}
                     />
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">{formatCurrency(valorAds)}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                    {formatCurrency(valorAds)}
+                    {usandoAdsDiluido && (
+                      <span className="text-[10px] font-normal ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">dil.</span>
+                    )}
+                  </TableCell>
                   <TableCell className={`text-right whitespace-nowrap font-medium ${corLinha}`}>
                     {formatPct(margemPct)}
                     {margemPct != null && !usandoCustoReal && (

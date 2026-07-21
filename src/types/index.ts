@@ -74,6 +74,7 @@ export interface Lote {
   codigo: string
   fornecedor: string
   data: string
+  ativo: boolean
   created_at: string
 }
 
@@ -108,6 +109,7 @@ export interface Configuracao {
   imposto_percentual: number
   margem_minima_percentual: number
   custo_fixo_mensal: number
+  gasto_ads_mensal: number
   updated_at: string
 }
 

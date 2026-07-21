@@ -11,6 +11,7 @@ export type ProjecaoProduto = {
   valorExtra: number | null
   labelExtra: 'Logística FBA' | 'Taxa Fixa' | null
   valorAds: number | null
+  usandoAdsDiluido: boolean
   pesoFaltando: boolean
   semFaixaPreco: boolean
   lucroPorUnidade: number | null
@@ -30,7 +31,8 @@ export function calcularProjecao(
   faixasFba: FaixaLogisticaFba[],
   faixasPreco: FaixaTaxaMarketplacePreco[],
   impostoPercentual: number,
-  margemMinimaPercentual: number
+  margemMinimaPercentual: number,
+  adsDiluidoPorUnidade = 0
 ): ProjecaoProduto {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
@@ -41,11 +43,15 @@ export function calcularProjecao(
     ? custoReal.custoUnitario + custoReal.custosLogistica.reduce((s, c) => s + c.valor, 0)
     : p.preco_custo_unitario
 
+  const usandoAdsDiluido = p.ads_modo == null && adsDiluidoPorUnidade > 0
+  const adsModoEfetivo = p.ads_modo ?? (usandoAdsDiluido ? 'valor' : null)
+  const adsValorEfetivo = p.ads_modo != null ? p.ads_valor : adsDiluidoPorUnidade
+
   if (p.preco_venda == null || custoFixoTotal == null) {
     return {
       precoTotal, usandoCustoReal,
       valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
-      valorAds: null,
+      valorAds: null, usandoAdsDiluido,
       pesoFaltando: false, semFaixaPreco: false,
       lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null,
     }
@@ -60,8 +66,8 @@ export function calcularProjecao(
     faixasPreco,
     impostoPercentual,
     margemMinimaPercentual,
-    adsModo: p.ads_modo,
-    adsValor: p.ads_valor,
+    adsModo: adsModoEfetivo,
+    adsValor: adsValorEfetivo,
   })
 
   const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
@@ -74,7 +80,7 @@ export function calcularProjecao(
     taxaPct: r.taxaPct * 100,
     valorImposto: r.valorImposto,
     valorExtra, labelExtra,
-    valorAds: r.valorAds,
+    valorAds: r.valorAds, usandoAdsDiluido,
     pesoFaltando: r.pesoFaltando,
     semFaixaPreco: r.semFaixaPreco,
     lucroPorUnidade: r.lucro,

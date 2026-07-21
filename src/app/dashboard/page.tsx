@@ -229,9 +229,11 @@ export default function DashboardPage() {
     const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
     const localPadrao = locais.find((l) => l.usa_tarifa_fba) ?? locais.find((l) => l.tipo === 'marketplace') ?? null
     const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
+    const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+    const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
 
     const linhas = produtos.map((p) => {
-      const { margemPct, lucroMes } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localPadrao, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
+      const { margemPct, lucroMes } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localPadrao, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       return { produto: p, margemPct, lucroMes }
     })
 

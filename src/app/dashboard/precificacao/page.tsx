@@ -76,6 +76,12 @@ export default function PrecificacaoPage() {
   const precoVenda = produto?.preco_venda ?? 0
   const custoFixoTotal = (custoReal?.custoUnitario ?? 0) + (custoReal?.custosLogistica.reduce((s, c) => s + c.valor, 0) ?? 0)
 
+  const totalVendasMes = produtos.reduce((s, p) => s + (p.vendas_mes ?? 0), 0)
+  const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
+  const usandoAdsDiluido = produto?.ads_modo == null && adsDiluidoPorUnidade > 0
+  const adsModoEfetivo = produto?.ads_modo ?? (usandoAdsDiluido ? 'valor' : null)
+  const adsValorEfetivo = produto?.ads_modo != null ? produto.ads_valor : adsDiluidoPorUnidade
+
   const r = calcularPrecificacao({
     precoVenda,
     pesoGramas: produto?.peso_gramas ?? null,
@@ -85,8 +91,8 @@ export default function PrecificacaoPage() {
     faixasPreco,
     impostoPercentual: config?.imposto_percentual ?? 0,
     margemMinimaPercentual: config?.margem_minima_percentual ?? 0,
-    adsModo: produto?.ads_modo,
-    adsValor: produto?.ads_valor,
+    adsModo: adsModoEfetivo,
+    adsValor: adsValorEfetivo,
   })
 
   if (loading) {
@@ -195,10 +201,13 @@ export default function PrecificacaoPage() {
               )}
             </div>
           )}
-          {produto?.ads_modo && (
+          {adsModoEfetivo && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                Ads {produto.ads_modo === 'percentual' ? `(${formatPct(produto.ads_valor ?? 0)})` : ''}
+                Ads {adsModoEfetivo === 'percentual' ? `(${formatPct(adsValorEfetivo ?? 0)})` : ''}
+                {usandoAdsDiluido && (
+                  <span className="text-[10px] ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">(dil.)</span>
+                )}
               </span>
               <span>{formatCurrency(r.valorAds)}</span>
             </div>
