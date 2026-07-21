@@ -130,6 +130,22 @@ export default function ProdutosPage() {
   const [deltaEstoque, setDeltaEstoque] = useState('')
   const [aplicandoEstoque, setAplicandoEstoque] = useState(false)
   const [aplicandoStatus, setAplicandoStatus] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
+
+  function iniciarArrasto(e: React.MouseEvent) {
+    if (!scrollRef.current) return
+    arrastoRef.current = { x: e.clientX, scrollLeft: scrollRef.current.scrollLeft }
+  }
+
+  function moverArrasto(e: React.MouseEvent) {
+    if (!arrastoRef.current || !scrollRef.current) return
+    scrollRef.current.scrollLeft = arrastoRef.current.scrollLeft - (e.clientX - arrastoRef.current.x)
+  }
+
+  function pararArrasto() {
+    arrastoRef.current = null
+  }
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -192,13 +208,15 @@ export default function ProdutosPage() {
   const totais = useMemo(() => {
     let lucroMes = 0
     let lucroTotal = 0
+    let brutoTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
       const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
+      if (p.preco_venda != null) brutoTotal += p.preco_venda * p.estoqueTotal
     }
-    return { lucroMes, lucroTotal }
+    return { lucroMes, lucroTotal, brutoTotal }
   }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual])
 
   function abrirNovo() {
@@ -337,7 +355,7 @@ export default function ProdutosPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 max-w-md">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl">
         <Card size="sm">
           <CardHeader>
             <CardTitle className="text-muted-foreground text-xs font-normal">Lucro/Mês (todos ativos)</CardTitle>
@@ -346,7 +364,13 @@ export default function ProdutosPage() {
         </Card>
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-muted-foreground text-xs font-normal">Lucro Total (todos ativos)</CardTitle>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Bruto Total (todos ativos)</CardTitle>
+          </CardHeader>
+          <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(totais.brutoTotal)}</CardContent>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Líquido Total (todos ativos)</CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${corSinal(totais.lucroTotal)}`}>{formatCurrency(totais.lucroTotal)}</CardContent>
         </Card>
@@ -440,8 +464,15 @@ export default function ProdutosPage() {
         </div>
       )}
 
-      <div className="rounded-lg border border-border overflow-auto max-h-[70vh]">
-        {loading ? (
+      <div
+        ref={scrollRef}
+        className="rounded-lg border border-border overflow-auto max-h-[70vh] cursor-grab active:cursor-grabbing"
+        onMouseDown={iniciarArrasto}
+        onMouseMove={moverArrasto}
+        onMouseUp={pararArrasto}
+        onMouseLeave={pararArrasto}
+      >
+        {loading && produtos.length === 0 ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
