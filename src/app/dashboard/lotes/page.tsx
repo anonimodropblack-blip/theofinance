@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -14,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Plus, Loader2, Boxes } from 'lucide-react'
+import { toast } from 'sonner'
 import type { Lote } from '@/types'
 
 type LoteComTotal = Lote & { totalUnidades: number }
@@ -28,6 +30,7 @@ export default function LotesPage() {
   const router = useRouter()
   const [lotes, setLotes] = useState<LoteComTotal[]>([])
   const [loading, setLoading] = useState(true)
+  const [mostrarInativos, setMostrarInativos] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -52,6 +55,15 @@ export default function LotesPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  async function alternarAtivoLote(l: LoteComTotal) {
+    const { error } = await supabase.from('lotes').update({ ativo: !l.ativo }).eq('id', l.id)
+    if (error) { toast.error('Erro ao atualizar lote.'); return }
+    setLotes((prev) => prev.map((x) => (x.id === l.id ? { ...x, ativo: !x.ativo } : x)))
+    toast.success(l.ativo ? 'Lote arquivado' : 'Lote reativado')
+  }
+
+  const lotesVisiveis = lotes.filter((l) => mostrarInativos || l.ativo)
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -66,12 +78,17 @@ export default function LotesPage() {
         />
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+        <input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} />
+        Mostrar arquivados
+      </label>
+
       <div className="rounded-lg border border-border overflow-x-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
-        ) : lotes.length === 0 ? (
+        ) : lotesVisiveis.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
             <Boxes className="h-8 w-8 mb-3 opacity-40" />
             <p className="text-sm">Nenhum lote cadastrado ainda.</p>
@@ -84,20 +101,26 @@ export default function LotesPage() {
                 <TableHead>Fornecedor</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead className="text-right">Unidades</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="w-32" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lotes.map((l) => (
+              {lotesVisiveis.map((l) => (
                 <TableRow
                   key={l.id}
-                  className="cursor-pointer hover:bg-muted/50"
+                  className={`cursor-pointer hover:bg-muted/50 ${!l.ativo ? 'opacity-60' : ''}`}
                   onClick={() => router.push(`/dashboard/lotes/${l.id}/custos`)}
                 >
                   <TableCell className="font-medium">{l.codigo}</TableCell>
                   <TableCell className="text-muted-foreground">{l.fornecedor}</TableCell>
                   <TableCell className="text-muted-foreground">{formatData(l.data)}</TableCell>
                   <TableCell className="text-right">{l.totalUnidades}</TableCell>
+                  <TableCell>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); alternarAtivoLote(l) }}>
+                      <Badge variant={l.ativo ? 'default' : 'secondary'}>{l.ativo ? 'Ativo' : 'Arquivado'}</Badge>
+                    </button>
+                  </TableCell>
                   <TableCell>
                     <Button
                       variant="ghost"
