@@ -282,6 +282,14 @@ export default function ProdutosPage() {
     })
   }
 
+  function selecionarTodos() {
+    setSelecionados(new Set(filtrados.map((p) => p.id)))
+  }
+
+  function desmarcarTodos() {
+    setSelecionados(new Set())
+  }
+
   async function aplicarPrecoEmMassa() {
     const pct = paraNumero(pctPreco)
     if (pct == null || pct === 0) {
@@ -436,6 +444,12 @@ export default function ProdutosPage() {
             onClick={() => setModoSelecao((m) => !m)}
           >
             {modoSelecao ? 'Sair da seleção' : 'Selecionar'}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={selecionarTodos}>
+            Selecionar todos
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={desmarcarTodos} disabled={selecionados.size === 0}>
+            Tirar seleção
           </Button>
           <p className="text-xs text-muted-foreground">
             {modoSelecao
