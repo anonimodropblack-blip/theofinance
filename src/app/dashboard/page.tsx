@@ -224,21 +224,28 @@ export default function DashboardPage() {
 
     const margemMedia = pesoTotal > 0 ? margemPonderadaSoma / pesoTotal : 0
 
-    // pedidos/mês e ticket médio: aproximados a partir de Vendas/Mês (estimativa manual por
-    // produto) — o sistema não registra pedidos individuais.
+    // pedidos/mês, ticket médio e gasto com ads: aproximados a partir de Vendas/Mês
+    // (estimativa manual por produto) — o sistema não registra pedidos individuais.
+    // Ads: cada produto pode ter seu próprio Ads (% ou R$/un, definido em Produtos);
+    // pro que não tem, cai no gasto mensal geral de Configurações diluído por unidade
+    // (mesmo critério usado na Precificação/Relatório de Produtos).
     let faturamentoMensal = 0
     let pedidosMes = 0
+    let gastoAdsMensal = 0
     for (const p of produtos) {
       if (p.preco_venda == null || p.vendas_mes == null) continue
       faturamentoMensal += p.preco_venda * p.vendas_mes
       pedidosMes += p.vendas_mes
+
+      const adsPct = p.ads_modo === 'percentual' ? (p.ads_valor ?? 0) / 100 : 0
+      const adsFixo = p.ads_modo === 'valor' ? (p.ads_valor ?? 0) : 0
+      const adsPorUnidade = p.ads_modo != null ? p.preco_venda * adsPct + adsFixo : adsDiluidoPorUnidadeKpi
+      gastoAdsMensal += adsPorUnidade * p.vendas_mes
     }
     const ticketMedio = pedidosMes > 0 ? faturamentoMensal / pedidosMes : 0
 
-    // Ads: gasto estimado é o valor informado em Configurações. TACoS = % do
-    // faturamento mensal gasto em ads; ROAS = quanto o faturamento retorna
-    // pra cada real gasto em ads.
-    const gastoAdsMensal = config.gasto_ads_mensal ?? 0
+    // TACoS = % do faturamento mensal gasto em ads; ROAS = quanto o faturamento
+    // retorna pra cada real gasto em ads.
     const tacosPct = faturamentoMensal > 0 ? (gastoAdsMensal / faturamentoMensal) * 100 : null
     const roas = gastoAdsMensal > 0 ? faturamentoMensal / gastoAdsMensal : null
 
@@ -424,8 +431,10 @@ export default function DashboardPage() {
         </h2>
         {kpis.gastoAdsMensal <= 0 ? (
           <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-            Nenhum gasto com Ads informado ainda. Preencha em{' '}
-            <Link href="/dashboard/configuracoes" className="text-foreground underline underline-offset-2">Configurações</Link>{' '}
+            Nenhum gasto com Ads definido ainda. Configure o Ads por produto em{' '}
+            <Link href="/dashboard/produtos" className="text-foreground underline underline-offset-2">Produtos</Link>{' '}
+            (ou um gasto mensal geral em{' '}
+            <Link href="/dashboard/configuracoes" className="text-foreground underline underline-offset-2">Configurações</Link>)
             pra ver a estimativa de TACoS e ROAS aqui.
           </div>
         ) : (
