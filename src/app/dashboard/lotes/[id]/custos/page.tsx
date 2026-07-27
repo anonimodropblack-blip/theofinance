@@ -188,7 +188,9 @@ export default function CustosLotePage() {
   }, {})
 
   const totalCustos = Object.values(resumoPorCategoria).reduce((s, v) => s + v, 0)
-  const custoPorUnidade = totalUnidades > 0 ? totalCustos / totalUnidades : 0
+  const totalProdutos = itens.reduce((s, i) => s + (i.custo_unitario ?? 0) * i.quantidade, 0)
+  const investimentoTotal = totalProdutos + totalCustos
+  const custoPorUnidade = totalUnidades > 0 ? investimentoTotal / totalUnidades : 0
 
   if (loading) {
     return (
@@ -248,6 +250,13 @@ export default function CustosLotePage() {
             </div>
           </div>
         ))}
+
+        {itens.length > 0 && (
+          <div className="flex items-center justify-between text-sm font-medium pt-2 mt-1 border-t border-border">
+            <span>Total em produtos</span>
+            <span>{formatCurrency(totalProdutos)}</span>
+          </div>
+        )}
 
         <div className="flex items-end gap-2 pt-3 mt-2 border-t border-border">
           <div className="flex-1 min-w-0">
@@ -364,6 +373,10 @@ export default function CustosLotePage() {
 
       <div className="rounded-lg border border-border p-4 space-y-1.5">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Resumo</p>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Produtos</span>
+          <span>{formatCurrency(totalProdutos)}</span>
+        </div>
         {Object.entries(resumoPorCategoria).map(([nome, v]) => (
           <div key={nome} className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">{nome}</span>
@@ -371,8 +384,8 @@ export default function CustosLotePage() {
           </div>
         ))}
         <div className="flex items-center justify-between text-sm font-medium pt-2 mt-2 border-t border-border">
-          <span>Total</span>
-          <span>{formatCurrency(totalCustos)}</span>
+          <span>Investimento total do lote</span>
+          <span>{formatCurrency(investimentoTotal)}</span>
         </div>
         <div className="flex items-center justify-between text-sm font-semibold text-primary">
           <span>Custo por unidade</span>
