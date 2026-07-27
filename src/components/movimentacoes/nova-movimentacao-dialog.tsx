@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ajustarEstoque } from '@/lib/estoque'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -23,8 +24,8 @@ import {
 } from '@/components/ui/select'
 import { ProdutoAutocomplete } from '@/components/produtos/produto-autocomplete'
 import { toast } from 'sonner'
-import { Loader2, X } from 'lucide-react'
-import type { LocalEstoque, Produto } from '@/types'
+import { Loader2, X, Package, Boxes } from 'lucide-react'
+import type { LocalEstoque, Lote, Produto } from '@/types'
 
 type Props = {
   open: boolean
@@ -35,10 +36,22 @@ type Props = {
   produtoInicial?: Produto | null
 }
 
+type ItemLoteParaMover = {
+  produto: Produto
+  disponivel: number
+  mover: string
+  incluir: boolean
+}
+
 export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, onSaved, produtoInicial = null }: Props) {
   const [supabase] = useState(() => createClient())
   const [tipo, setTipo] = useState<'envio' | 'ajuste'>('envio')
+  const [modoLote, setModoLote] = useState(false)
   const [produto, setProduto] = useState<Produto | null>(null)
+  const [lotesAtivos, setLotesAtivos] = useState<Lote[]>([])
+  const [loteId, setLoteId] = useState('')
+  const [itensLote, setItensLote] = useState<ItemLoteParaMover[]>([])
+  const [carregandoItensLote, setCarregandoItensLote] = useState(false)
   const [origemId, setOrigemId] = useState('')
   const [destinoId, setDestinoId] = useState('')
   const [localId, setLocalId] = useState('')
@@ -53,7 +66,10 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
   useEffect(() => {
     if (!open) return
     setTipo('envio')
+    setModoLote(false)
     setProduto(produtoInicial)
+    setLoteId('')
+    setItensLote([])
     setOrigemId(locais.find((l) => l.tipo === 'proprio')?.id ?? '')
     setDestinoId('')
     setLocalId('')
@@ -65,7 +81,85 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
     setCustoFrete('')
   }, [open, locais, produtoInicial])
 
+  useEffect(() => {
+    if (!open) return
+    supabase.from('lotes').select('*').eq('ativo', true).order('data', { ascending: false }).then(({ data }) => {
+      setLotesAtivos((data ?? []) as Lote[])
+    })
+  }, [open, supabase])
+
+  useEffect(() => {
+    if (!modoLote || !loteId) { setItensLote([]); return }
+    let cancelado = false
+    setCarregandoItensLote(true)
+    ;(async () => {
+      const { data: itens } = await supabase
+        .from('lote_itens')
+        .select('*, produto:produtos(*)')
+        .eq('lote_id', loteId)
+      const produtoIds = (itens ?? []).map((i) => i.produto_id)
+      const { data: est } = produtoIds.length > 0 && origemId
+        ? await supabase.from('estoque').select('*').eq('local_id', origemId).in('produto_id', produtoIds)
+        : { data: [] }
+      if (cancelado) return
+      const disponivelPorProduto = new Map((est ?? []).map((e) => [e.produto_id, e.quantidade as number]))
+      setItensLote(
+        (itens ?? []).map((i) => {
+          const disponivel = disponivelPorProduto.get(i.produto_id) ?? 0
+          return {
+            produto: i.produto as Produto,
+            disponivel,
+            mover: String(Math.max(disponivel, 0)),
+            incluir: disponivel > 0,
+          }
+        })
+      )
+      setCarregandoItensLote(false)
+    })()
+    return () => { cancelado = true }
+  }, [modoLote, loteId, origemId, supabase])
+
+  async function salvarLoteInteiro() {
+    if (!loteId) { toast.error('Selecione o lote.'); return }
+    if (!origemId || !destinoId) { toast.error('Selecione origem e destino.'); return }
+    const selecionados = itensLote.filter((i) => i.incluir && Number(i.mover) > 0)
+    if (selecionados.length === 0) { toast.error('Selecione ao menos um produto pra mover.'); return }
+    for (const i of selecionados) {
+      if (Number(i.mover) > i.disponivel) {
+        toast.error(`Quantidade de "${i.produto.nome}" maior que o disponível (${i.disponivel}).`)
+        return
+      }
+    }
+
+    setSalvando(true)
+    for (const i of selecionados) {
+      const qtd = Number(i.mover)
+      const { error } = await supabase.from('movimentacoes').insert({
+        produto_id: i.produto.id,
+        tipo: 'envio',
+        quantidade: -qtd,
+        origem_local_id: origemId,
+        destino_local_id: destinoId,
+        lote_id: loteId,
+        observacao: observacao.trim() || null,
+        quantidade_caixas: quantidadeCaixas ? Number(quantidadeCaixas) : null,
+        codigo_referencia: codigoReferencia.trim() || null,
+        motorista: motorista.trim() || null,
+        custo_frete: custoFrete ? Number(custoFrete.replace(',', '.')) : null,
+      })
+      if (error) { toast.error(`Erro ao mover "${i.produto.nome}".`); setSalvando(false); return }
+      await ajustarEstoque(supabase, i.produto.id, origemId, -qtd)
+      await ajustarEstoque(supabase, i.produto.id, destinoId, qtd)
+    }
+    setSalvando(false)
+    toast.success(`${selecionados.length} produto${selecionados.length === 1 ? '' : 's'} movido${selecionados.length === 1 ? '' : 's'}`)
+    onOpenChange(false)
+    onSaved()
+  }
+
   async function salvar() {
+    if (modoLote) { await salvarLoteInteiro(); return }
+
     if (!produto || !quantidade || Number(quantidade) === 0) {
       toast.error('Selecione o produto e informe a quantidade.')
       return
@@ -132,7 +226,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
             <Label>Tipo</Label>
             <Select
               value={tipo}
-              onValueChange={(v) => setTipo(v as 'envio' | 'ajuste')}
+              onValueChange={(v) => { setTipo(v as 'envio' | 'ajuste'); if (v === 'ajuste') setModoLote(false) }}
               items={{ envio: 'Envio para marketplace', ajuste: 'Ajuste manual' }}
             >
               <SelectTrigger className="w-full">
@@ -145,19 +239,58 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Produto</Label>
-            {produto ? (
-              <div className="h-8 flex items-center justify-between px-3 rounded-md border border-border bg-muted text-sm">
-                {produto.nome}
-                <button type="button" onClick={() => setProduto(null)}>
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              </div>
-            ) : (
-              <ProdutoAutocomplete produtos={produtos} onSelect={setProduto} />
-            )}
-          </div>
+          {tipo === 'envio' && (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setModoLote(false)}
+                className={`h-8 rounded-md border text-sm flex items-center justify-center gap-1.5 transition-colors ${!modoLote ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              >
+                <Package className="h-3.5 w-3.5" /> Produto
+              </button>
+              <button
+                type="button"
+                onClick={() => setModoLote(true)}
+                className={`h-8 rounded-md border text-sm flex items-center justify-center gap-1.5 transition-colors ${modoLote ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground'}`}
+              >
+                <Boxes className="h-3.5 w-3.5" /> Lote inteiro
+              </button>
+            </div>
+          )}
+
+          {modoLote ? (
+            <div className="space-y-2">
+              <Label>Lote</Label>
+              <Select
+                value={loteId}
+                onValueChange={(v) => setLoteId(v ?? '')}
+                items={Object.fromEntries(lotesAtivos.map((l) => [l.id, `${l.codigo} · ${l.fornecedor}`]))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {lotesAtivos.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>{l.codigo} · {l.fornecedor}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Produto</Label>
+              {produto ? (
+                <div className="h-8 flex items-center justify-between px-3 rounded-md border border-border bg-muted text-sm">
+                  {produto.nome}
+                  <button type="button" onClick={() => setProduto(null)}>
+                    <X className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+              ) : (
+                <ProdutoAutocomplete produtos={produtos} onSelect={setProduto} />
+              )}
+            </div>
+          )}
 
           {tipo === 'envio' ? (
             <div className="grid grid-cols-2 gap-3">
@@ -216,14 +349,54 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label>{tipo === 'ajuste' ? 'Quantidade (use negativo pra remover)' : 'Quantidade'}</Label>
-            <Input
-              type="number"
-              value={quantidade}
-              onChange={(e) => setQuantidade(e.target.value)}
-            />
-          </div>
+          {modoLote ? (
+            <div className="space-y-2">
+              <Label>Produtos do lote</Label>
+              <div className="rounded-lg border border-border divide-y divide-border max-h-64 overflow-y-auto">
+                {!loteId ? (
+                  <p className="text-sm text-muted-foreground p-3">Selecione um lote acima.</p>
+                ) : carregandoItensLote ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : itensLote.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-3">Este lote não tem produtos.</p>
+                ) : (
+                  itensLote.map((item, index) => (
+                    <div key={item.produto.id} className="flex items-center gap-2 p-2.5">
+                      <Checkbox
+                        checked={item.incluir}
+                        onCheckedChange={(v) => setItensLote((prev) => prev.map((it, i) => i === index ? { ...it, incluir: !!v } : it))}
+                        disabled={item.disponivel <= 0}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm truncate">{item.produto.nome}</p>
+                        <p className="text-xs text-muted-foreground">{item.disponivel} disponível na origem</p>
+                      </div>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={item.disponivel}
+                        className="w-20 shrink-0"
+                        value={item.mover}
+                        disabled={!item.incluir}
+                        onChange={(e) => setItensLote((prev) => prev.map((it, i) => i === index ? { ...it, mover: e.target.value } : it))}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>{tipo === 'ajuste' ? 'Quantidade (use negativo pra remover)' : 'Quantidade'}</Label>
+              <Input
+                type="number"
+                value={quantidade}
+                onChange={(e) => setQuantidade(e.target.value)}
+              />
+            </div>
+          )}
 
           {tipo === 'envio' && (
             <>
