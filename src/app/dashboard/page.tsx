@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { calcularPrecificacao } from '@/lib/precificacao'
@@ -36,6 +37,11 @@ function formatPctNullable(v: number | null) {
 function formatCurrencyNullable(v: number | null) {
   if (v == null) return '—'
   return formatCurrency(v)
+}
+
+function formatRoas(v: number | null) {
+  if (v == null) return '—'
+  return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x`
 }
 
 type OrdemColuna = 'margem' | 'vendasMes' | 'lucroMes'
@@ -229,6 +235,13 @@ export default function DashboardPage() {
     }
     const ticketMedio = pedidosMes > 0 ? faturamentoMensal / pedidosMes : 0
 
+    // Ads: gasto estimado é o valor informado em Configurações. TACoS = % do
+    // faturamento mensal gasto em ads; ROAS = quanto o faturamento retorna
+    // pra cada real gasto em ads.
+    const gastoAdsMensal = config.gasto_ads_mensal ?? 0
+    const tacosPct = faturamentoMensal > 0 ? (gastoAdsMensal / faturamentoMensal) * 100 : null
+    const roas = gastoAdsMensal > 0 ? faturamentoMensal / gastoAdsMensal : null
+
     return {
       investimentoMercadoria,
       investimentoTotal,
@@ -241,6 +254,9 @@ export default function DashboardPage() {
       produtosAbaixoCount: produtosAbaixo.size,
       pedidosMes,
       ticketMedio,
+      gastoAdsMensal,
+      tacosPct,
+      roas,
     }
   }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco])
 
@@ -400,6 +416,54 @@ export default function DashboardPage() {
             <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <Megaphone className="h-4 w-4" /> Ads
+        </h2>
+        {kpis.gastoAdsMensal <= 0 ? (
+          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+            Nenhum gasto com Ads informado ainda. Preencha em{' '}
+            <Link href="/dashboard/configuracoes" className="text-foreground underline underline-offset-2">Configurações</Link>{' '}
+            pra ver a estimativa de TACoS e ROAS aqui.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <Wallet className="h-3.5 w-3.5" /> Gasto com Ads (mês)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-lg font-semibold">{formatCurrency(kpis.gastoAdsMensal)}</CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <Gauge className="h-3.5 w-3.5" /> TACoS
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold">{formatPctNullable(kpis.tacosPct)}</div>
+                <div className="text-xs text-muted-foreground">% do faturamento gasto em ads</div>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <Rocket className="h-3.5 w-3.5" /> ROAS
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold">{formatRoas(kpis.roas)}</div>
+                <div className="text-xs text-muted-foreground">retorno pra cada R$ 1 em ads</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">
