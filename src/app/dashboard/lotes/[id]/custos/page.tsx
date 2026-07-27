@@ -109,6 +109,14 @@ export default function CustosLotePage() {
     carregar()
   }
 
+  async function atualizarData(novaData: string) {
+    if (!novaData || novaData === lote?.data) return
+    const { error } = await supabase.from('lotes').update({ data: novaData }).eq('id', params.id)
+    if (error) { toast.error('Erro ao salvar data.'); return }
+    toast.success('Data do lote atualizada')
+    carregar()
+  }
+
   async function atualizarQuantidadeItem(item: LoteItem, novaQtdTexto: string) {
     const novaQtd = parseInt(novaQtdTexto, 10)
     if (Number.isNaN(novaQtd) || novaQtd <= 0 || novaQtd === item.quantidade) return
@@ -214,12 +222,18 @@ export default function CustosLotePage() {
             onSalvar={(v) => renomearLote('codigo', v)}
           />
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
+        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
           <CelulaEditavel
             valor={lote?.fornecedor ?? ''}
             onSalvar={(v) => renomearLote('fornecedor', v)}
           />
-          <span>· {totalUnidades} unidades</span>
+          <span>· {totalUnidades} unidades ·</span>
+          <Input
+            type="date"
+            className="h-6 w-auto px-1.5 py-0 text-sm border-transparent bg-transparent hover:border-input focus-visible:border-ring"
+            value={lote?.data ?? ''}
+            onChange={(e) => atualizarData(e.target.value)}
+          />
         </p>
       </div>
 
