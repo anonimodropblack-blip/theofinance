@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Search, MoreHorizontal, Loader2, Package } from 'lucide-react'
+import { Plus, Search, MoreHorizontal, Loader2, Package, ArrowUp, ArrowDown, Wand2 } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
 import { FabricanteInput } from '@/components/produtos/fabricante-input'
 import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celula-editavel'
@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { ajustarEstoque } from '@/lib/estoque'
-import { COR_FATURAMENTO, corMargem, corSinal } from '@/lib/cores'
+import { COR_ALERTA, COR_FATURAMENTO, COR_POSITIVO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
 import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, UnidadeEmbalagem } from '@/types'
 
@@ -133,6 +133,7 @@ export default function ProdutosPage() {
   const [adsValorMassa, setAdsValorMassa] = useState('')
   const [aplicandoAds, setAplicandoAds] = useState(false)
   const [modoSelecao, setModoSelecao] = useState(false)
+  const [aplicandoTodosPrecos, setAplicandoTodosPrecos] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
 
@@ -224,6 +225,19 @@ export default function ProdutosPage() {
     return { lucroMes, lucroTotal, brutoTotal }
   }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
 
+  // Produtos cujo preço sugerido (pra bater a margem mínima configurada) difere do preço
+  // atual em pelo menos 1 centavo — tanto pra cima (margem baixa) quanto pra baixo (margem
+  // sobrando, dá pra baixar o preço). Base do botão "Aplicar todos".
+  const sugestoesPendentes = useMemo(() => {
+    return filtrados.flatMap((p) => {
+      if (p.preco_venda == null) return []
+      const custoReal = custoRealPorProduto[p.id] ?? null
+      const { precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      if (precoSugerido == null || Math.abs(precoSugerido - p.preco_venda) < 0.01) return []
+      return [{ produto: p, precoSugerido }]
+    })
+  }, [filtrados, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
+
   function abrirNovo() {
     setEditando(null)
     setDialogOpen(true)
@@ -250,6 +264,22 @@ export default function ProdutosPage() {
       return
     }
     toast.success(`Preço de ${p.nome} atualizado para ${formatCurrency(precoSugerido)}`)
+    carregar()
+  }
+
+  async function aplicarTodosPrecosSugeridos() {
+    if (sugestoesPendentes.length === 0) return
+    setAplicandoTodosPrecos(true)
+    const resultados = await Promise.all(
+      sugestoesPendentes.map(({ produto, precoSugerido }) =>
+        supabase.from('produtos').update({ preco_venda: precoSugerido }).eq('id', produto.id)
+      )
+    )
+    setAplicandoTodosPrecos(false)
+    const falhas = resultados.filter((r) => r.error).length
+    if (falhas > 0) toast.error(`${falhas} produto(s) não puderam ser atualizados.`)
+    const sucesso = sugestoesPendentes.length - falhas
+    if (sucesso > 0) toast.success(`Preço sugerido aplicado em ${sucesso} produto(s)`)
     carregar()
   }
 
@@ -458,6 +488,25 @@ export default function ProdutosPage() {
         </div>
       </div>
 
+      {sugestoesPendentes.length > 0 && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-center gap-3 flex-wrap">
+          <span className="text-sm">
+            <strong>{sugestoesPendentes.length}</strong> produto(s) com preço fora da margem mínima configurada (pra mais ou pra menos).
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="ml-auto"
+            disabled={aplicandoTodosPrecos}
+            onClick={aplicarTodosPrecosSugeridos}
+          >
+            {aplicandoTodosPrecos ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            Aplicar todos os preços sugeridos
+          </Button>
+        </div>
+      )}
+
       {selecionados.size > 0 && (
         <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-center gap-4 flex-wrap">
           <span className="text-sm font-medium whitespace-nowrap">{selecionados.size} selecionado(s)</span>
@@ -602,8 +651,9 @@ export default function ProdutosPage() {
                 const custoReal = custoRealPorProduto[p.id] ?? null
                 const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
-                const margemBaixa = margemPct != null && config != null && margemPct < config.margem_minima_percentual
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
+                const precisaAjuste = precoSugerido != null && p.preco_venda != null && Math.abs(precoSugerido - p.preco_venda) >= 0.01
+                const aumentando = precisaAjuste && precoSugerido! > p.preco_venda!
                 return (
                 <TableRow
                   key={p.id}
@@ -714,10 +764,15 @@ export default function ProdutosPage() {
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroMes)}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroTotal)}</TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {margemBaixa && precoSugerido != null ? (
+                    {precisaAjuste ? (
                       <div className="flex items-center gap-2">
+                        {aumentando ? (
+                          <ArrowUp className={`h-3.5 w-3.5 ${COR_ALERTA}`} />
+                        ) : (
+                          <ArrowDown className={`h-3.5 w-3.5 ${COR_POSITIVO}`} />
+                        )}
                         <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoSugerido)}</span>
-                        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => aplicarPrecoSugerido(p, precoSugerido)}>
+                        <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => aplicarPrecoSugerido(p, precoSugerido!)}>
                           Aplicar
                         </Button>
                       </div>
