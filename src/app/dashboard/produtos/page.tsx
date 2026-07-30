@@ -37,8 +37,9 @@ import { agruparVendasCanal, totalVendasProduto, type VendasPorProdutoCanal } fr
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { ajustarEstoque } from '@/lib/estoque'
 import { COR_ALERTA, COR_FATURAMENTO, COR_POSITIVO, corMargem, corSinal } from '@/lib/cores'
+import { calcularDiasEstoque, calcularMediaDiaria, calcularSugestaoPedido } from '@/lib/reposicao'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensalProduto, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
 
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
@@ -136,6 +137,7 @@ export default function ProdutosPage() {
   const [modoSelecao, setModoSelecao] = useState(false)
   const [aplicandoTodosPrecos, setAplicandoTodosPrecos] = useState(false)
   const [vendasCanal, setVendasCanal] = useState<VendasPorProdutoCanal>({})
+  const [fechamentosPorProduto, setFechamentosPorProduto] = useState<Record<string, FechamentoMensalProduto[]>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
 
@@ -155,7 +157,7 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }, { data: fechamentosProdutosData }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
@@ -166,6 +168,7 @@ export default function ProdutosPage() {
       supabase.from('lote_itens').select('*, lote:lotes(*)'),
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
       supabase.from('vendas_mes_canal').select('*'),
+      supabase.from('fechamentos_mensais_produtos').select('*'),
     ])
 
     if (!error && data) {
@@ -197,6 +200,12 @@ export default function ProdutosPage() {
     setLoteItens((itens ?? []) as LoteItemComLote[])
     setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
+    const fechamentosAgrupados: Record<string, FechamentoMensalProduto[]> = {}
+    for (const f of (fechamentosProdutosData ?? []) as FechamentoMensalProduto[]) {
+      if (!fechamentosAgrupados[f.produto_id]) fechamentosAgrupados[f.produto_id] = []
+      fechamentosAgrupados[f.produto_id].push(f)
+    }
+    setFechamentosPorProduto(fechamentosAgrupados)
     setLoading(false)
   }, [supabase])
 
@@ -635,6 +644,9 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Preço/Und.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Custo Real (Lote)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Estoque</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Média/Dia</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Dias de Estoque</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Sugestão Próximo Pedido</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Imposto</TableHead>
@@ -659,6 +671,9 @@ export default function ProdutosPage() {
                 const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
+                const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
+                const diasEstoque = calcularDiasEstoque(p.estoqueTotal, mediaDiaria)
+                const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0)
                 const precisaAjuste = precoSugerido != null && p.preco_venda != null && Math.abs(precoSugerido - p.preco_venda) >= 0.01
                 const aumentando = precisaAjuste && precoSugerido! > p.preco_venda!
                 return (
@@ -711,6 +726,15 @@ export default function ProdutosPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">{p.estoqueTotal}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                    {mediaDiaria != null ? mediaDiaria.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}
+                  </TableCell>
+                  <TableCell className={`text-right whitespace-nowrap ${diasEstoque != null && config && diasEstoque < config.prazo_reposicao_dias ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                    {diasEstoque != null ? Math.round(diasEstoque) : '—'}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap font-medium">
+                    {sugestaoPedido != null && sugestaoPedido > 0 ? sugestaoPedido : sugestaoPedido === 0 ? '—' : <span className="text-muted-foreground font-normal" title="Sem histórico de mês fechado pra esse produto ainda">sem dados</span>}
+                  </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>
                     <CelulaEditavel
                       valor={p.preco_venda != null ? String(p.preco_venda) : ''}

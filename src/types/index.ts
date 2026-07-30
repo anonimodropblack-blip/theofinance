@@ -113,6 +113,8 @@ export interface Configuracao {
   prolabore_alvo: number
   prolabore_pct_excedente: number
   prolabore_descontar_custo_fixo: boolean
+  prazo_reposicao_dias: number
+  estoque_cobertura_dias: number
   updated_at: string
 }
 

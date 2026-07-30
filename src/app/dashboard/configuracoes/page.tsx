@@ -54,6 +54,8 @@ export default function ConfiguracoesPage() {
   const [prolaboreAlvo, setProlaboreAlvo] = useState('')
   const [prolaborePctExcedente, setProlaborePctExcedente] = useState('')
   const [prolaboreDescontarCustoFixo, setProlaboreDescontarCustoFixo] = useState(true)
+  const [prazoReposicaoDias, setPrazoReposicaoDias] = useState('')
+  const [estoqueCoberturaDias, setEstoqueCoberturaDias] = useState('')
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
@@ -78,6 +80,8 @@ export default function ConfiguracoesPage() {
     setProlaboreAlvo(cfg ? String(cfg.prolabore_alvo) : '')
     setProlaborePctExcedente(cfg ? String(cfg.prolabore_pct_excedente) : '')
     setProlaboreDescontarCustoFixo(cfg ? cfg.prolabore_descontar_custo_fixo : true)
+    setPrazoReposicaoDias(cfg ? String(cfg.prazo_reposicao_dias) : '')
+    setEstoqueCoberturaDias(cfg ? String(cfg.estoque_cobertura_dias) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
     setFaixasFba(
@@ -110,6 +114,8 @@ export default function ConfiguracoesPage() {
         prolabore_alvo: Number(prolaboreAlvo.replace(',', '.')) || 0,
         prolabore_pct_excedente: Number(prolaborePctExcedente.replace(',', '.')) || 0,
         prolabore_descontar_custo_fixo: prolaboreDescontarCustoFixo,
+        prazo_reposicao_dias: Number(prazoReposicaoDias) || 0,
+        estoque_cobertura_dias: Number(estoqueCoberturaDias) || 0,
       })
       .eq('id', config.id)
     setSalvandoConfig(false)
@@ -359,6 +365,33 @@ export default function ConfiguracoesPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               Até o alvo, você recebe o lucro cheio do mês. Acima do alvo, você recebe o alvo fixo + a % configurada sobre o que passar disso — o resto fica na empresa. O piso é só um aviso: se o valor calculado ficar abaixo dele, o Dashboard mostra um alerta.
+            </p>
+            <Button type="submit" disabled={salvandoConfig}>
+              {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Reposição de Estoque</CardTitle>
+          <CardDescription>Usado pra calcular quanto pedir no próximo lote, na tela de Produtos.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={salvarConfig} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 max-w-md">
+              <div className="space-y-2">
+                <Label htmlFor="prazo_reposicao_dias">Prazo de produção + envio (dias)</Label>
+                <Input id="prazo_reposicao_dias" inputMode="numeric" placeholder="30" value={prazoReposicaoDias} onChange={(e) => setPrazoReposicaoDias(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="estoque_cobertura_dias">Cobertura desejada depois que chegar (dias)</Label>
+                <Input id="estoque_cobertura_dias" inputMode="numeric" placeholder="60" value={estoqueCoberturaDias} onChange={(e) => setEstoqueCoberturaDias(e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              A sugestão de compra usa a média real de vendas/dia (calculada a partir dos meses já fechados) pra cobrir o tempo até o próximo pedido chegar, mais os dias de estoque extra que você quer manter depois. Sem histórico de pelo menos um mês fechado pra um produto, a sugestão não aparece pra ele ainda.
             </p>
             <Button type="submit" disabled={salvandoConfig}>
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
