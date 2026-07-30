@@ -28,6 +28,7 @@ export function calcularProjecao(
   p: Produto,
   custoReal: CustoRealProduto | null,
   local: LocalEstoque | null,
+  quantidadeVendidaCanal: number,
   faixasFba: FaixaLogisticaFba[],
   faixasPreco: FaixaTaxaMarketplacePreco[],
   impostoPercentual: number,
@@ -72,7 +73,7 @@ export function calcularProjecao(
 
   const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
   const valorExtra = r.usaTarifaFba ? r.valorTarifaFba : r.usaTaxaPorFaixa ? r.valorFixoFaixa : null
-  const lucroMes = p.vendas_mes != null ? r.lucro * p.vendas_mes : null
+  const lucroMes = r.lucro * quantidadeVendidaCanal
 
   return {
     precoTotal, usandoCustoReal,
@@ -88,4 +89,39 @@ export function calcularProjecao(
     lucroMes,
     precoSugerido: r.precoSugerido,
   }
+}
+
+export type ProjecaoTotalProduto = {
+  lucroMes: number
+  vendasQtd: number
+  faturamento: number
+}
+
+// Soma o lucro/faturamento/quantidade de um produto em TODOS os canais onde ele vende
+// (roda calcularProjecao uma vez por canal, com a comissão/tarifa real daquele
+// marketplace, e soma os resultados) — cada canal tem sua própria taxa, então não dá
+// pra projetar o total assumindo que tudo vendeu num canal só.
+export function calcularProjecaoTotal(
+  p: Produto,
+  custoReal: CustoRealProduto | null,
+  vendasCanalProduto: Record<string, number>,
+  locaisPorId: Map<string, LocalEstoque>,
+  faixasFba: FaixaLogisticaFba[],
+  faixasPreco: FaixaTaxaMarketplacePreco[],
+  impostoPercentual: number,
+  margemMinimaPercentual: number,
+  adsDiluidoPorUnidade = 0
+): ProjecaoTotalProduto {
+  let lucroMes = 0
+  let vendasQtd = 0
+  let faturamento = 0
+  for (const [localId, qtd] of Object.entries(vendasCanalProduto)) {
+    if (qtd <= 0) continue
+    const local = locaisPorId.get(localId) ?? null
+    const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+    lucroMes += r.lucroMes ?? 0
+    vendasQtd += qtd
+    faturamento += (p.preco_venda ?? 0) * qtd
+  }
+  return { lucroMes, vendasQtd, faturamento }
 }

@@ -33,11 +33,12 @@ import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celu
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { calcularProjecao } from '@/lib/produtos-projecao'
+import { agruparVendasCanal, totalVendasProduto, type VendasPorProdutoCanal } from '@/lib/vendas-canal'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { ajustarEstoque } from '@/lib/estoque'
 import { COR_ALERTA, COR_FATURAMENTO, COR_POSITIVO, corMargem, corSinal } from '@/lib/cores'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, UnidadeEmbalagem } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
 
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
@@ -134,6 +135,7 @@ export default function ProdutosPage() {
   const [aplicandoAds, setAplicandoAds] = useState(false)
   const [modoSelecao, setModoSelecao] = useState(false)
   const [aplicandoTodosPrecos, setAplicandoTodosPrecos] = useState(false)
+  const [vendasCanal, setVendasCanal] = useState<VendasPorProdutoCanal>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
 
@@ -153,7 +155,7 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
@@ -163,6 +165,7 @@ export default function ProdutosPage() {
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('lote_itens').select('*, lote:lotes(*)'),
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
+      supabase.from('vendas_mes_canal').select('*'),
     ])
 
     if (!error && data) {
@@ -193,6 +196,7 @@ export default function ProdutosPage() {
     setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
     setLoteItens((itens ?? []) as LoteItemComLote[])
     setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
+    setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
     setLoading(false)
   }, [supabase])
 
@@ -206,7 +210,7 @@ export default function ProdutosPage() {
   const impostoPercentual = config?.imposto_percentual ?? 0
   const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
   const localSelecionado = locais.find((l) => l.id === localSelecionadoId) ?? null
-  const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+  const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
   const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
   const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
   const labelColunaExtra = localSelecionado?.usa_tarifa_fba ? 'Logística FBA' : localSelecionado?.usa_taxa_por_faixa ? 'Taxa Fixa' : '—'
@@ -217,13 +221,14 @@ export default function ProdutosPage() {
     let brutoTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
-      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
+      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
       if (p.preco_venda != null) brutoTotal += p.preco_venda * p.estoqueTotal
     }
     return { lucroMes, lucroTotal, brutoTotal }
-  }, [produtos, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
+  }, [produtos, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
 
   // Produtos cujo preço sugerido (pra bater a margem mínima configurada) difere do preço
   // atual em pelo menos 1 centavo — tanto pra cima (margem baixa) quanto pra baixo (margem
@@ -232,11 +237,12 @@ export default function ProdutosPage() {
     return filtrados.flatMap((p) => {
       if (p.preco_venda == null) return []
       const custoReal = custoRealPorProduto[p.id] ?? null
-      const { precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
+      const { precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (precoSugerido == null || Math.abs(precoSugerido - p.preco_venda) < 0.01) return []
       return [{ produto: p, precoSugerido }]
     })
-  }, [filtrados, custoRealPorProduto, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
+  }, [filtrados, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
 
   function abrirNovo() {
     setEditando(null)
@@ -421,7 +427,7 @@ export default function ProdutosPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl">
         <Card size="sm">
           <CardHeader>
-            <CardTitle className="text-muted-foreground text-xs font-normal">Lucro/Mês (todos ativos)</CardTitle>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Lucro/Mês ({localSelecionado?.nome ?? '—'})</CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${corSinal(totais.lucroMes)}`}>{formatCurrency(totais.lucroMes)}</CardContent>
         </Card>
@@ -483,7 +489,7 @@ export default function ProdutosPage() {
           <p className="text-xs text-muted-foreground">
             {modoSelecao
               ? 'Clique em qualquer linha pra selecionar/desselecionar.'
-              : 'Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora.'}
+              : 'Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora. Exceção: Vendas/Mês agora é por canal, edite no formulário completo.'}
           </p>
         </div>
       </div>
@@ -649,7 +655,8 @@ export default function ProdutosPage() {
             <TableBody>
               {filtrados.map((p, index) => {
                 const custoReal = custoRealPorProduto[p.id] ?? null
-                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+                const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 const precisaAjuste = precoSugerido != null && p.preco_venda != null && Math.abs(precoSugerido - p.preco_venda) >= 0.01
@@ -758,8 +765,8 @@ export default function ProdutosPage() {
                     )}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroPorUnidade)}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <CelulaEditavel valor={p.vendas_mes != null ? String(p.vendas_mes) : ''} align="right" tipo="numeric" onSalvar={(v) => salvarCampo(p.id, 'vendas_mes', paraInteiro(v))} />
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground" title="Edite por canal no formulário completo (menu de 3 pontos > Editar)">
+                    {totalVendasProduto(vendasCanal, p.id)}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroMes)}</TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${corLinha}`}>{formatCurrency(lucroTotal)}</TableCell>
@@ -815,6 +822,8 @@ export default function ProdutosPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         produto={editando}
+        locaisMarketplace={locais}
+        vendasCanalProduto={editando ? vendasCanal[editando.id] ?? {} : {}}
         onSaved={carregar}
       />
     </div>

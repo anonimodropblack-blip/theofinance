@@ -17,7 +17,7 @@ import { Loader2, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import type { Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto } from '@/types'
+import type { Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -37,6 +37,7 @@ export default function PrecificacaoPage() {
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
+  const [vendasCanalRows, setVendasCanalRows] = useState<VendaMesCanal[]>([])
   const [produtoId, setProdutoId] = useState('')
   const [localId, setLocalId] = useState('')
   const [loading, setLoading] = useState(true)
@@ -46,7 +47,7 @@ export default function PrecificacaoPage() {
 
   useEffect(() => {
     async function carregarBase() {
-      const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }, { data: fxsPreco }, { data: itens }, { data: custos }] = await Promise.all([
+      const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanal }] = await Promise.all([
         supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
         supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
         supabase.from('configuracoes').select('*').single(),
@@ -54,6 +55,7 @@ export default function PrecificacaoPage() {
         supabase.from('faixas_taxa_marketplace_preco').select('*'),
         supabase.from('lote_itens').select('*, lote:lotes(*)'),
         supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
+        supabase.from('vendas_mes_canal').select('*'),
       ])
       setProdutos((prods ?? []) as Produto[])
       setLocais((locs ?? []) as LocalEstoque[])
@@ -62,6 +64,7 @@ export default function PrecificacaoPage() {
       setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
       setLoteItens((itens ?? []) as LoteItemComLote[])
       setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
+      setVendasCanalRows((vendasCanal ?? []) as VendaMesCanal[])
       if (prods && prods.length > 0) setProdutoId(prods[0].id)
       if (locs && locs.length > 0) {
         const marketplace = locs.find((l) => l.tipo === 'marketplace')
@@ -104,7 +107,7 @@ export default function PrecificacaoPage() {
   const precoVenda = produto?.preco_venda ?? 0
   const custoFixoTotal = (custoReal?.custoUnitario ?? 0) + (custoReal?.custosLogistica.reduce((s, c) => s + c.valor, 0) ?? 0)
 
-  const totalVendasMes = produtos.reduce((s, p) => s + (p.vendas_mes ?? 0), 0)
+  const totalVendasMes = vendasCanalRows.reduce((s, v) => s + v.quantidade, 0)
   const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
   const usandoAdsDiluido = produto?.ads_modo == null && adsDiluidoPorUnidade > 0
   const adsModoEfetivo = produto?.ads_modo ?? (usandoAdsDiluido ? 'valor' : null)

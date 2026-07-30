@@ -22,7 +22,7 @@ import {
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { FabricanteInput } from './fabricante-input'
-import type { Fabricante, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
+import type { Fabricante, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
 
 const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
 const UNIDADES_EMBALAGEM: UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
@@ -31,10 +31,12 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   produto: Produto | null
+  locaisMarketplace: LocalEstoque[]
+  vendasCanalProduto: Record<string, number>
   onSaved: () => void
 }
 
-export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
+export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, vendasCanalProduto, onSaved }: Props) {
   const supabase = createClient()
   const [nome, setNome] = useState('')
   const [fabricante, setFabricante] = useState('')
@@ -48,7 +50,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
   const [tipo, setTipo] = useState<TipoProduto | ''>('')
   const [qtdMinima, setQtdMinima] = useState('')
   const [precoCustoUnitario, setPrecoCustoUnitario] = useState('')
-  const [vendasMes, setVendasMes] = useState('')
+  const [vendasPorCanal, setVendasPorCanal] = useState<Record<string, string>>({})
   const [pesoGramas, setPesoGramas] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -66,9 +68,11 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
     setTipo(produto?.tipo ?? '')
     setQtdMinima(produto?.qtd_minima != null ? String(produto.qtd_minima) : '')
     setPrecoCustoUnitario(produto?.preco_custo_unitario != null ? String(produto.preco_custo_unitario) : '')
-    setVendasMes(produto?.vendas_mes != null ? String(produto.vendas_mes) : '')
+    setVendasPorCanal(
+      Object.fromEntries(locaisMarketplace.map((l) => [l.id, String(vendasCanalProduto[l.id] ?? '')]))
+    )
     setPesoGramas(produto?.peso_gramas != null ? String(produto.peso_gramas) : '')
-  }, [open, produto])
+  }, [open, produto, locaisMarketplace, vendasCanalProduto])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -92,21 +96,28 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
       tipo: tipo || null,
       qtd_minima: qtdMinima ? Number(qtdMinima) : null,
       preco_custo_unitario: precoCustoUnitario ? Number(precoCustoUnitario.replace(',', '.')) : null,
-      vendas_mes: vendasMes ? Number(vendasMes) : null,
       peso_gramas: pesoGramas ? Number(pesoGramas) : null,
     }
 
-    const { error } = produto
-      ? await supabase.from('produtos').update(payload).eq('id', produto.id)
-      : await supabase.from('produtos').insert(payload)
+    const { data: salvo, error } = produto
+      ? await supabase.from('produtos').update(payload).eq('id', produto.id).select('id').single()
+      : await supabase.from('produtos').insert(payload).select('id').single()
 
-    setSaving(false)
-
-    if (error) {
+    if (error || !salvo) {
+      setSaving(false)
       toast.error('Erro ao salvar produto.')
       return
     }
 
+    await supabase.from('vendas_mes_canal').delete().eq('produto_id', salvo.id)
+    const linhasVendas = Object.entries(vendasPorCanal)
+      .map(([localId, v]) => ({ produto_id: salvo.id, local_id: localId, quantidade: Number(v) || 0 }))
+      .filter((l) => l.quantidade > 0)
+    if (linhasVendas.length > 0) {
+      await supabase.from('vendas_mes_canal').insert(linhasVendas)
+    }
+
+    setSaving(false)
     toast.success(produto ? 'Produto atualizado' : 'Produto criado')
     onOpenChange(false)
     onSaved()
@@ -208,7 +219,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="qtd_minima">Qtd. mínima (fábrica)</Label>
               <Input id="qtd_minima" inputMode="numeric" placeholder="0" value={qtdMinima} onChange={(e) => setQtdMinima(e.target.value)} />
@@ -223,10 +234,28 @@ export function ProdutoDialog({ open, onOpenChange, produto, onSaved }: Props) {
                 onChange={(e) => setPrecoCustoUnitario(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="vendas_mes">Vendas/mês (marketplaces)</Label>
-              <Input id="vendas_mes" inputMode="numeric" placeholder="0" value={vendasMes} onChange={(e) => setVendasMes(e.target.value)} />
-            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Vendas/mês por canal</Label>
+            {locaisMarketplace.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhum marketplace ativo cadastrado ainda.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {locaisMarketplace.map((l) => (
+                  <div key={l.id} className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-muted-foreground">{l.nome}</span>
+                    <Input
+                      inputMode="numeric"
+                      placeholder="0"
+                      className="w-24 text-right"
+                      value={vendasPorCanal[l.id] ?? ''}
+                      onChange={(e) => setVendasPorCanal((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

@@ -13,13 +13,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { calcularProjecao } from '@/lib/produtos-projecao'
+import { calcularProjecao, calcularProjecaoTotal } from '@/lib/produtos-projecao'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import type { Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Lote, Produto } from '@/types'
+import { calcularAlocacaoCaixinhas, calcularProlabore } from '@/lib/prolabore'
+import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoMes } from '@/lib/financeiro'
+import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
+import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
+import { toast } from 'sonner'
+import type { Caixinha, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -65,6 +70,13 @@ export default function DashboardPage() {
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
+  const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
+  const [lancamentos, setLancamentos] = useState<LancamentoFinanceiro[]>([])
+  const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
+  const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
+  const [fechando, setFechando] = useState(false)
+  const [aplicandoAlocacao, setAplicandoAlocacao] = useState(false)
+  const [retiradaDialogOpen, setRetiradaDialogOpen] = useState(false)
 
   const [relatorioBusca, setRelatorioBusca] = useState('')
   const [relatorioOrdem, setRelatorioOrdem] = useState<OrdemColuna>('margem')
@@ -81,6 +93,10 @@ export default function DashboardPage() {
       { data: custos },
       { data: fxsFba },
       { data: fxsPreco },
+      { data: cxs },
+      { data: lancs },
+      { data: vendasCanalData },
+      { data: fechamento },
     ] = await Promise.all([
       supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
       supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -91,6 +107,10 @@ export default function DashboardPage() {
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
+      supabase.from('caixinhas').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('lancamentos_financeiros').select('*'),
+      supabase.from('vendas_mes_canal').select('*'),
+      supabase.from('fechamentos_mensais').select('*').eq('mes_referencia', primeiroDiaMesAtualISO()).maybeSingle(),
     ])
 
     setProdutos((prods ?? []) as Produto[])
@@ -107,6 +127,10 @@ export default function DashboardPage() {
         return a.preco_min - b.preco_min
       })
     )
+    setCaixinhas((cxs ?? []) as Caixinha[])
+    setLancamentos((lancs ?? []) as LancamentoFinanceiro[])
+    setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
+    setFechamentoAtual((fechamento ?? null) as FechamentoMensal | null)
     setLoading(false)
   }, [supabase])
 
@@ -177,7 +201,7 @@ export default function DashboardPage() {
     }
 
     // faturamento bruto + lucro líquido projetado + margem média (ponderada por estoque, já líquida) + produtos abaixo da margem
-    const totalVendasMesKpi = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+    const totalVendasMesKpi = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
     const adsDiluidoPorUnidadeKpi = totalVendasMesKpi > 0 ? (config.gasto_ads_mensal ?? 0) / totalVendasMesKpi : 0
     // estoque parado em "Casa" (próprio) ainda não tem taxa de marketplace real — projeta
     // como se fosse vender no marketplace padrão, senão a conta ficava sem desconto de
@@ -233,14 +257,15 @@ export default function DashboardPage() {
     let pedidosMes = 0
     let gastoAdsMensal = 0
     for (const p of produtos) {
-      if (p.preco_venda == null || p.vendas_mes == null) continue
-      faturamentoMensal += p.preco_venda * p.vendas_mes
-      pedidosMes += p.vendas_mes
+      const vendasMesProduto = totalVendasProduto(vendasCanal, p.id)
+      if (p.preco_venda == null || vendasMesProduto === 0) continue
+      faturamentoMensal += p.preco_venda * vendasMesProduto
+      pedidosMes += vendasMesProduto
 
       const adsPct = p.ads_modo === 'percentual' ? (p.ads_valor ?? 0) / 100 : 0
       const adsFixo = p.ads_modo === 'valor' ? (p.ads_valor ?? 0) : 0
       const adsPorUnidade = p.ads_modo != null ? p.preco_venda * adsPct + adsFixo : adsDiluidoPorUnidadeKpi
-      gastoAdsMensal += adsPorUnidade * p.vendas_mes
+      gastoAdsMensal += adsPorUnidade * vendasMesProduto
     }
     const ticketMedio = pedidosMes > 0 ? faturamentoMensal / pedidosMes : 0
 
@@ -265,7 +290,54 @@ export default function DashboardPage() {
       tacosPct,
       roas,
     }
-  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco])
+  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
+
+  const financeiroInfo = useMemo(() => {
+    if (!config) return null
+    const impostoPercentual = config.imposto_percentual ?? 0
+    const margemMinimaPercentual = config.margem_minima_percentual ?? 0
+    const locaisPorId = new Map(locais.map((l) => [l.id, l]))
+    const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
+    const totalVendasMes = produtos.reduce((s, p) => s + totalVendasProduto(vendasCanal, p.id), 0)
+    const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config.gasto_ads_mensal ?? 0) / totalVendasMes : 0
+
+    const lucroLiquidoMensal = produtos.reduce((s, p) => {
+      const { lucroMes } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      return s + lucroMes
+    }, 0)
+
+    const lucroBaseProlabore = config.prolabore_descontar_custo_fixo ? lucroLiquidoMensal - (config.custo_fixo_mensal ?? 0) : lucroLiquidoMensal
+    const prolaboreCalculado = calcularProlabore(lucroBaseProlabore, config.prolabore_alvo, config.prolabore_pct_excedente)
+    const retiradoNoMes = totalRetiradoNoMes(lancamentos, primeiroDiaMesAtualISO())
+    const saldo = saldoPorConta(lancamentos)
+    const alocacaoSugerida = calcularAlocacaoCaixinhas(lucroBaseProlabore - prolaboreCalculado, caixinhas)
+
+    return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, retiradoNoMes, saldo, alocacaoSugerida }
+  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal])
+
+  async function aplicarAlocacaoCaixinhas() {
+    if (!financeiroInfo || financeiroInfo.alocacaoSugerida.length === 0) return
+    const linhas = financeiroInfo.alocacaoSugerida
+      .filter((a) => a.valor > 0)
+      .map((a) => ({
+        tipo: 'saida' as const,
+        conta: a.caixinha.conta_destino,
+        categoria: a.caixinha.nome,
+        caixinha_id: a.caixinha.id,
+        valor: a.valor,
+        data: new Date().toISOString().slice(0, 10),
+      }))
+    if (linhas.length === 0) return
+    setAplicandoAlocacao(true)
+    const { error } = await supabase.from('lancamentos_financeiros').insert(linhas)
+    setAplicandoAlocacao(false)
+    if (error) {
+      toast.error('Erro ao registrar a divisão.')
+      return
+    }
+    toast.success(`Divisão registrada em ${linhas.length} caixinha${linhas.length === 1 ? '' : 's'}`)
+    carregar()
+  }
 
   const ultimosLotes = useMemo(() => {
     const qtdPorLote = new Map<string, number>()
@@ -275,32 +347,124 @@ export default function DashboardPage() {
     return lotes.slice(0, 5).map((l) => ({ ...l, quantidade: qtdPorLote.get(l.id) ?? 0 }))
   }, [lotes, loteItens])
 
-  const relatorioProdutos = useMemo(() => {
+  // Base sem filtro de busca — usada tanto pelo Relatório de Produtos (filtrado/ordenado
+  // abaixo) quanto pelo fechamento mensal (precisa de TODOS os produtos, não só os que
+  // batem com a busca digitada no momento).
+  const projecaoTodosProdutos = useMemo(() => {
     const impostoPercentual = config?.imposto_percentual ?? 0
     const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
-    const localPadrao = locais.find((l) => l.usa_tarifa_fba) ?? locais.find((l) => l.tipo === 'marketplace') ?? null
+    const locaisPorId = new Map(locais.map((l) => [l.id, l]))
     const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
-    const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? (p.vendas_mes ?? 0) : 0), 0)
+    const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
     const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
 
-    const linhas = produtos.map((p) => {
-      const { margemPct, lucroMes } = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localPadrao, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
-      return { produto: p, margemPct, lucroMes }
+    return produtos.map((p) => {
+      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const margemPct = faturamento > 0 ? (lucroMes / faturamento) * 100 : null
+      return { produto: p, margemPct, lucroMes, vendasQtd, faturamento }
     })
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
 
+  const relatorioProdutos = useMemo(() => {
     const q = relatorioBusca.toLowerCase()
     const filtradas = q
-      ? linhas.filter((l) => l.produto.nome.toLowerCase().includes(q) || (l.produto.fabricante ?? '').toLowerCase().includes(q))
-      : linhas
+      ? projecaoTodosProdutos.filter((l) => l.produto.nome.toLowerCase().includes(q) || (l.produto.fabricante ?? '').toLowerCase().includes(q))
+      : projecaoTodosProdutos
 
-    const chave = (l: (typeof linhas)[number]) => {
-      if (relatorioOrdem === 'vendasMes') return l.produto.vendas_mes ?? -Infinity
-      if (relatorioOrdem === 'lucroMes') return l.lucroMes ?? -Infinity
+    const chave = (l: (typeof filtradas)[number]) => {
+      if (relatorioOrdem === 'vendasMes') return l.vendasQtd
+      if (relatorioOrdem === 'lucroMes') return l.lucroMes
       return l.margemPct ?? -Infinity
     }
 
     return [...filtradas].sort((a, b) => (chave(b) - chave(a)) * (relatorioDesc ? 1 : -1))
-  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, relatorioBusca, relatorioOrdem, relatorioDesc])
+  }, [projecaoTodosProdutos, relatorioBusca, relatorioOrdem, relatorioDesc])
+
+  // Mesma projeção, agregada por canal em vez de por produto — alimenta o pivot Canal x
+  // Mês do Histórico e o fechamento mensal.
+  const relatorioCanais = useMemo(() => {
+    const impostoPercentual = config?.imposto_percentual ?? 0
+    const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+    const locaisPorId = new Map(locais.map((l) => [l.id, l]))
+    const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
+    const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
+    const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
+
+    const porCanal = new Map<string, { vendasQtd: number; faturamento: number; lucro: number }>()
+    for (const p of produtos) {
+      const custoReal = custoRealPorProduto[p.id] ?? null
+      for (const [localId, qtd] of Object.entries(vendasCanal[p.id] ?? {})) {
+        if (qtd <= 0) continue
+        const local = locaisPorId.get(localId) ?? null
+        const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+        const atual = porCanal.get(localId) ?? { vendasQtd: 0, faturamento: 0, lucro: 0 }
+        atual.vendasQtd += qtd
+        atual.faturamento += (p.preco_venda ?? 0) * qtd
+        atual.lucro += r.lucroMes ?? 0
+        porCanal.set(localId, atual)
+      }
+    }
+    return [...porCanal.entries()].flatMap(([localId, v]) => {
+      const local = locaisPorId.get(localId)
+      return local ? [{ local, ...v }] : []
+    })
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
+
+  const nomeMesAtual = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  async function fecharMes() {
+    if (!kpis) return
+    if (fechamentoAtual && !window.confirm(`${nomeMesAtual} já foi fechado em ${formatData(fechamentoAtual.fechado_em.slice(0, 10))}. Fechar de novo substitui esse snapshot. Continuar?`)) return
+
+    setFechando(true)
+    if (fechamentoAtual) {
+      await supabase.from('fechamentos_mensais').delete().eq('id', fechamentoAtual.id)
+    }
+
+    const { data: novo, error } = await supabase.from('fechamentos_mensais').insert({
+      mes_referencia: primeiroDiaMesAtualISO(),
+      faturamento_bruto: kpis.faturamentoBruto,
+      lucro_liquido: financeiroInfo?.lucroLiquidoMensal ?? 0,
+      gasto_ads: kpis.gastoAdsMensal,
+      investimento_total: kpis.investimentoTotal,
+      estoque_valor: kpis.estoqueValor,
+    }).select('id').single()
+
+    if (error || !novo) {
+      toast.error('Erro ao fechar o mês.')
+      setFechando(false)
+      return
+    }
+
+    const linhasProdutos = projecaoTodosProdutos
+      .filter((l) => l.vendasQtd > 0 || l.faturamento > 0)
+      .map((l) => ({
+        fechamento_id: novo.id,
+        produto_id: l.produto.id,
+        produto_nome: l.produto.nome,
+        vendas_qtd: l.vendasQtd,
+        faturamento: l.faturamento,
+        lucro: l.lucroMes,
+        margem_pct: l.margemPct,
+      }))
+    const linhasCanais = relatorioCanais.map((c) => ({
+      fechamento_id: novo.id,
+      local_id: c.local.id,
+      local_nome: c.local.nome,
+      vendas_qtd: c.vendasQtd,
+      faturamento: c.faturamento,
+      lucro: c.lucro,
+    }))
+
+    await Promise.all([
+      linhasProdutos.length > 0 ? supabase.from('fechamentos_mensais_produtos').insert(linhasProdutos) : Promise.resolve(),
+      linhasCanais.length > 0 ? supabase.from('fechamentos_mensais_canais').insert(linhasCanais) : Promise.resolve(),
+    ])
+
+    setFechando(false)
+    toast.success(`${nomeMesAtual} fechado com sucesso`)
+    carregar()
+  }
 
   function ordenarPor(coluna: OrdemColuna) {
     if (relatorioOrdem === coluna) {
@@ -475,6 +639,101 @@ export default function DashboardPage() {
         )}
       </div>
 
+      <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-medium capitalize">Fechamento de {nomeMesAtual}</p>
+          <p className="text-xs text-muted-foreground">
+            {fechamentoAtual
+              ? `Fechado em ${formatData(fechamentoAtual.fechado_em.slice(0, 10))} — fechar de novo substitui esse snapshot.`
+              : 'Ainda não fechado esse mês.'}
+          </p>
+        </div>
+        <Button type="button" size="sm" variant={fechamentoAtual ? 'outline' : 'default'} disabled={fechando} onClick={fecharMes}>
+          {fechando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarCheck className="h-3.5 w-3.5" />}
+          {fechamentoAtual ? 'Re-fechar o mês' : 'Fechar o mês'}
+        </Button>
+      </div>
+
+      {financeiroInfo && config && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <HandCoins className="h-4 w-4" /> Pró-labore & Caixa
+            </h2>
+            <Link href="/dashboard/financeiro" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              Ver livro-caixa completo
+            </Link>
+          </div>
+
+          {financeiroInfo.prolaboreCalculado < config.prolabore_piso && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0" />
+              O pró-labore sugerido esse mês ({formatCurrency(financeiroInfo.prolaboreCalculado)}) está abaixo do piso configurado ({formatCurrency(config.prolabore_piso)}).
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <HandCoins className="h-3.5 w-3.5" /> Pró-labore Sugerido
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold">{formatCurrency(financeiroInfo.prolaboreCalculado)}</div>
+                <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setRetiradaDialogOpen(true)}>
+                  Registrar essa retirada
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <Wallet className="h-3.5 w-3.5" /> Já Retirado no Mês
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <Landmark className="h-3.5 w-3.5" /> Saldo Operacional
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.saldo.operacional)}</CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <PiggyBank className="h-3.5 w-3.5" /> Saldo Reserva/CDB
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.saldo.reserva)}</CardContent>
+            </Card>
+          </div>
+
+          {financeiroInfo.alocacaoSugerida.length > 0 && (
+            <div className="rounded-lg border border-border p-4 space-y-3">
+              <p className="text-sm font-medium">Pra onde vai o resto do lucro</p>
+              <div className="space-y-1.5">
+                {financeiroInfo.alocacaoSugerida.map(({ caixinha, valor }) => (
+                  <div key={caixinha.id} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{caixinha.nome} ({caixinha.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)</span>
+                    <span className="font-medium">{formatCurrency(valor)}</span>
+                  </div>
+                ))}
+              </div>
+              <Button type="button" size="sm" variant="secondary" disabled={aplicandoAlocacao} onClick={aplicarAlocacaoCaixinhas}>
+                {aplicandoAlocacao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Registrar essa divisão'}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-3">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Boxes className="h-4 w-4" /> Últimos Lotes
@@ -552,7 +811,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {relatorioProdutos.map(({ produto, margemPct, lucroMes }) => {
+                {relatorioProdutos.map(({ produto, margemPct, lucroMes, vendasQtd }) => {
                   const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
                   return (
                     <TableRow key={produto.id}>
@@ -560,7 +819,7 @@ export default function DashboardPage() {
                       <TableCell className={`text-right font-medium ${corMargemProduto}`}>
                         {formatPctNullable(margemPct)}
                       </TableCell>
-                      <TableCell className="text-right text-muted-foreground">{produto.vendas_mes ?? '—'}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{vendasQtd || '—'}</TableCell>
                       <TableCell className={`text-right ${corMargemProduto}`}>{formatCurrencyNullable(lucroMes)}</TableCell>
                     </TableRow>
                   )
@@ -570,6 +829,15 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      <LancamentoDialog
+        open={retiradaDialogOpen}
+        onOpenChange={setRetiradaDialogOpen}
+        caixinhas={caixinhas}
+        valorInicial={financeiroInfo?.prolaboreCalculado}
+        retiradaInicial
+        onSaved={carregar}
+      />
     </div>
   )
 }

@@ -12,6 +12,8 @@ import {
   Calculator,
   Settings,
   Factory,
+  Wallet,
+  History,
 } from 'lucide-react'
 
 const NAV = [
@@ -22,6 +24,8 @@ const NAV = [
   { href: '/dashboard/precificacao', label: 'Precificação', icon: Calculator },
   { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse },
   { href: '/dashboard/movimentacoes', label: 'Movimentações', icon: Tags },
+  { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet },
+  { href: '/dashboard/historico', label: 'Histórico', icon: History },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]
 
