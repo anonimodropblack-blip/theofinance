@@ -16,7 +16,6 @@ export interface Produto {
   tipo: TipoProduto | null
   qtd_minima: number | null
   preco_custo_unitario: number | null
-  vendas_mes: number | null
   peso_gramas: number | null
   ads_modo: 'percentual' | 'valor' | null
   ads_valor: number | null
@@ -110,7 +109,34 @@ export interface Configuracao {
   margem_minima_percentual: number
   custo_fixo_mensal: number
   gasto_ads_mensal: number
+  prolabore_piso: number
+  prolabore_alvo: number
+  prolabore_pct_excedente: number
+  prolabore_descontar_custo_fixo: boolean
   updated_at: string
+}
+
+export interface Caixinha {
+  id: string
+  nome: string
+  percentual: number
+  conta_destino: 'operacional' | 'reserva'
+  ativo: boolean
+  ordem: number
+  created_at: string
+}
+
+export interface LancamentoFinanceiro {
+  id: string
+  data: string
+  tipo: 'entrada' | 'saida'
+  conta: 'operacional' | 'reserva'
+  retirada: boolean
+  caixinha_id: string | null
+  categoria: string | null
+  valor: number
+  descricao: string | null
+  created_at: string
 }
 
 export interface Estoque {
@@ -118,6 +144,45 @@ export interface Estoque {
   produto_id: string
   local_id: string
   quantidade: number
+}
+
+export interface VendaMesCanal {
+  id: string
+  produto_id: string
+  local_id: string
+  quantidade: number
+}
+
+export interface FechamentoMensal {
+  id: string
+  mes_referencia: string
+  faturamento_bruto: number
+  lucro_liquido: number
+  gasto_ads: number
+  investimento_total: number
+  estoque_valor: number
+  fechado_em: string
+}
+
+export interface FechamentoMensalProduto {
+  id: string
+  fechamento_id: string
+  produto_id: string
+  produto_nome: string
+  vendas_qtd: number
+  faturamento: number
+  lucro: number
+  margem_pct: number | null
+}
+
+export interface FechamentoMensalCanal {
+  id: string
+  fechamento_id: string
+  local_id: string
+  local_nome: string
+  vendas_qtd: number
+  faturamento: number
+  lucro: number
 }
 
 export interface Movimentacao {

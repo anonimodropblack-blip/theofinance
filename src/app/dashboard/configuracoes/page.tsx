@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -22,9 +23,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import type { CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
+import type { Caixinha, CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -36,11 +44,16 @@ export default function ConfiguracoesPage() {
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
+  const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
 
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
   const [custoFixoMensal, setCustoFixoMensal] = useState('')
   const [gastoAdsMensal, setGastoAdsMensal] = useState('')
+  const [prolaborePiso, setProlaborePiso] = useState('')
+  const [prolaboreAlvo, setProlaboreAlvo] = useState('')
+  const [prolaborePctExcedente, setProlaborePctExcedente] = useState('')
+  const [prolaboreDescontarCustoFixo, setProlaboreDescontarCustoFixo] = useState(true)
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
@@ -48,18 +61,23 @@ export default function ConfiguracoesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }, { data: fxsPreco }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }, { data: fxsPreco }, { data: cxs }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
+      supabase.from('caixinhas').select('*').order('ordem'),
     ])
     setConfig(cfg as Configuracao)
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
     setMargemMinima(cfg ? String(cfg.margem_minima_percentual) : '')
     setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
     setGastoAdsMensal(cfg ? String(cfg.gasto_ads_mensal) : '')
+    setProlaborePiso(cfg ? String(cfg.prolabore_piso) : '')
+    setProlaboreAlvo(cfg ? String(cfg.prolabore_alvo) : '')
+    setProlaborePctExcedente(cfg ? String(cfg.prolabore_pct_excedente) : '')
+    setProlaboreDescontarCustoFixo(cfg ? cfg.prolabore_descontar_custo_fixo : true)
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
     setFaixasFba(
@@ -71,6 +89,7 @@ export default function ConfiguracoesPage() {
     setFaixasPreco(
       ((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[]).sort((a, b) => a.preco_min - b.preco_min)
     )
+    setCaixinhas((cxs ?? []) as Caixinha[])
     setLoading(false)
   }, [supabase])
 
@@ -87,6 +106,10 @@ export default function ConfiguracoesPage() {
         margem_minima_percentual: Number(margemMinima.replace(',', '.')) || 0,
         custo_fixo_mensal: Number(custoFixoMensal.replace(',', '.')) || 0,
         gasto_ads_mensal: Number(gastoAdsMensal.replace(',', '.')) || 0,
+        prolabore_piso: Number(prolaborePiso.replace(',', '.')) || 0,
+        prolabore_alvo: Number(prolaboreAlvo.replace(',', '.')) || 0,
+        prolabore_pct_excedente: Number(prolaborePctExcedente.replace(',', '.')) || 0,
+        prolabore_descontar_custo_fixo: prolaboreDescontarCustoFixo,
       })
       .eq('id', config.id)
     setSalvandoConfig(false)
@@ -178,6 +201,54 @@ export default function ConfiguracoesPage() {
     setFaixasPreco((prev) => prev.filter((f) => f.id !== faixa.id))
   }
 
+  async function atualizarCaixinha(caixinha: Caixinha, campo: 'nome' | 'percentual', valorTexto: string) {
+    const valor = campo === 'percentual' ? Number(valorTexto.replace(',', '.')) : valorTexto.trim()
+    if (campo === 'percentual' && Number.isNaN(valor)) return
+    if (campo === 'nome' && !valor) return
+    const { error } = await supabase.from('caixinhas').update({ [campo]: valor }).eq('id', caixinha.id)
+    if (error) {
+      toast.error('Erro ao salvar caixinha.')
+      return
+    }
+    setCaixinhas((prev) => prev.map((c) => (c.id === caixinha.id ? { ...c, [campo]: valor } : c)))
+  }
+
+  async function atualizarContaDestinoCaixinha(caixinha: Caixinha, conta: 'operacional' | 'reserva') {
+    const { error } = await supabase.from('caixinhas').update({ conta_destino: conta }).eq('id', caixinha.id)
+    if (error) {
+      toast.error('Erro ao salvar caixinha.')
+      return
+    }
+    setCaixinhas((prev) => prev.map((c) => (c.id === caixinha.id ? { ...c, conta_destino: conta } : c)))
+  }
+
+  async function toggleAtivoCaixinha(caixinha: Caixinha) {
+    const { error } = await supabase.from('caixinhas').update({ ativo: !caixinha.ativo }).eq('id', caixinha.id)
+    if (error) {
+      toast.error('Erro ao atualizar caixinha.')
+      return
+    }
+    setCaixinhas((prev) => prev.map((c) => (c.id === caixinha.id ? { ...c, ativo: !c.ativo } : c)))
+  }
+
+  async function criarCaixinha() {
+    const { error } = await supabase.from('caixinhas').insert({ nome: 'Nova caixinha', percentual: 0, ordem: caixinhas.length })
+    if (error) {
+      toast.error('Erro ao criar caixinha.')
+      return
+    }
+    carregar()
+  }
+
+  async function excluirCaixinha(caixinha: Caixinha) {
+    const { error } = await supabase.from('caixinhas').delete().eq('id', caixinha.id)
+    if (error) {
+      toast.error('Erro ao excluir caixinha.')
+      return
+    }
+    setCaixinhas((prev) => prev.filter((c) => c.id !== caixinha.id))
+  }
+
   async function toggleAtivoLocal(local: LocalEstoque) {
     const { error } = await supabase.from('locais_estoque').update({ ativo: !local.ativo }).eq('id', local.id)
     if (error) {
@@ -258,6 +329,114 @@ export default function ConfiguracoesPage() {
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pró-labore</CardTitle>
+          <CardDescription>Regra de quanto você retira de salário por mês, calculada em cima do lucro líquido.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={salvarConfig} className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="prolabore_piso">Piso (R$)</Label>
+                <Input id="prolabore_piso" inputMode="decimal" placeholder="0,00" value={prolaborePiso} onChange={(e) => setProlaborePiso(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prolabore_alvo">Alvo / salário confortável (R$)</Label>
+                <Input id="prolabore_alvo" inputMode="decimal" placeholder="0,00" value={prolaboreAlvo} onChange={(e) => setProlaboreAlvo(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prolabore_pct">% sobre o que passar do alvo</Label>
+                <Input id="prolabore_pct" inputMode="decimal" placeholder="0,00" value={prolaborePctExcedente} onChange={(e) => setProlaborePctExcedente(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="prolabore_desconta_custo_fixo" checked={prolaboreDescontarCustoFixo} onCheckedChange={(v) => setProlaboreDescontarCustoFixo(v === true)} />
+              <Label htmlFor="prolabore_desconta_custo_fixo" className="font-normal">Descontar o Custo Fixo Mensal do lucro antes de calcular</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Até o alvo, você recebe o lucro cheio do mês. Acima do alvo, você recebe o alvo fixo + a % configurada sobre o que passar disso — o resto fica na empresa. O piso é só um aviso: se o valor calculado ficar abaixo dele, o Dashboard mostra um alerta.
+            </p>
+            <Button type="submit" disabled={salvandoConfig}>
+              {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Caixinhas</CardTitle>
+          <CardDescription>Divisão do que sobra do lucro depois do pró-labore. Edite o nome e o percentual de cada uma — a soma deveria fechar 100%.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto"><Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead className="text-right">Percentual</TableHead>
+                <TableHead>Vai para a conta</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {caixinhas.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell>
+                    <Input defaultValue={c.nome} onBlur={(e) => atualizarCaixinha(c, 'nome', e.target.value)} />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      defaultValue={String(c.percentual)}
+                      inputMode="decimal"
+                      className="w-20 ml-auto text-right"
+                      onBlur={(e) => atualizarCaixinha(c, 'percentual', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Select value={c.conta_destino} onValueChange={(v) => atualizarContaDestinoCaixinha(c, (v ?? 'operacional') as 'operacional' | 'reserva')}>
+                      <SelectTrigger className="w-[150px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="operacional">Operacional</SelectItem>
+                        <SelectItem value="reserva">Reserva/CDB</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <button type="button" onClick={() => toggleAtivoCaixinha(c)}>
+                      <Badge variant={c.ativo ? 'default' : 'secondary'}>{c.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirCaixinha(c)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table></div>
+          <div className="flex items-center justify-between">
+            <Button type="button" variant="outline" size="sm" onClick={criarCaixinha}>
+              <Plus className="h-4 w-4" />
+              Nova caixinha
+            </Button>
+            {(() => {
+              const soma = caixinhas.filter((c) => c.ativo).reduce((s, c) => s + c.percentual, 0)
+              return (
+                <p className={`text-xs ${Math.abs(soma - 100) < 0.01 ? 'text-muted-foreground' : 'text-destructive'}`}>
+                  Soma das caixinhas ativas: {soma.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                  {Math.abs(soma - 100) >= 0.01 && ' (deveria fechar 100%)'}
+                </p>
+              )
+            })()}
+          </div>
         </CardContent>
       </Card>
 
