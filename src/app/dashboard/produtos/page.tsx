@@ -676,6 +676,7 @@ export default function ProdutosPage() {
                 const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0)
                 const precisaAjuste = precoSugerido != null && p.preco_venda != null && Math.abs(precoSugerido - p.preco_venda) >= 0.01
                 const aumentando = precisaAjuste && precoSugerido! > p.preco_venda!
+                const variacaoPct = precisaAjuste && p.preco_venda ? ((precoSugerido! - p.preco_venda) / p.preco_venda) * 100 : null
                 return (
                 <TableRow
                   key={p.id}
@@ -802,7 +803,13 @@ export default function ProdutosPage() {
                         ) : (
                           <ArrowDown className={`h-3.5 w-3.5 ${COR_POSITIVO}`} />
                         )}
-                        <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoSugerido)}</span>
+                        <div className="flex flex-col leading-tight">
+                          <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoSugerido)}</span>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            {variacaoPct != null && `${variacaoPct > 0 ? '+' : ''}${formatPct(variacaoPct)}`}
+                            {margemPct != null && ` · margem ${formatPct(margemPct)}→${formatPct(margemMinimaPercentual)}`}
+                          </span>
+                        </div>
                         <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => aplicarPrecoSugerido(p, precoSugerido!)}>
                           Aplicar
                         </Button>
