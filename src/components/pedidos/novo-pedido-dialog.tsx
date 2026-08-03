@@ -295,7 +295,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[90vh] gap-6 overflow-y-auto rounded-3xl p-6 sm:max-w-2xl sm:p-10"
+        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-2xl"
       >
         <DialogClose
           type="button"
@@ -304,7 +304,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
           <X className="h-4 w-4" />
         </DialogClose>
 
-        <DialogHeader className="gap-0">
+        <DialogHeader className="shrink-0 gap-0 px-6 pb-2 pt-6 sm:px-10 sm:pt-10">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Package className="h-5 w-5" />
@@ -316,7 +316,8 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
           </div>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="space-y-6">
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-6 pt-2 sm:px-10 sm:pb-10">
           <div className="relative flex rounded-full bg-muted p-1">
             <div
               className={cn(
@@ -486,8 +487,9 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
               placeholder="Adicione uma observação para este pedido..."
             />
           </div>
+        </div>
 
-          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 mt-2 rounded-b-3xl bg-popover p-4 sm:-mx-10 sm:-mb-10 sm:p-6">
+          <DialogFooter className="mx-0 mb-0 shrink-0 rounded-b-3xl border-t border-border bg-popover p-4 sm:p-6">
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancelar
             </DialogClose>
