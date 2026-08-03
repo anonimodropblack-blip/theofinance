@@ -115,8 +115,14 @@ export default function NovoLotePage() {
         }))
       )
 
-      for (const item of itens) {
-        await ajustarEstoque(supabase, item.produto.id, casa.id, item.quantidade)
+      try {
+        for (const item of itens) {
+          await ajustarEstoque(supabase, item.produto.id, casa.id, item.quantidade)
+        }
+      } catch {
+        toast.error('Lote foi criado, mas não deu pra atualizar o estoque. Confira manualmente.')
+        setSalvando(false)
+        return
       }
     }
 

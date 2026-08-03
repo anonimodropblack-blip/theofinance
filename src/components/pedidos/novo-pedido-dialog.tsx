@@ -280,8 +280,14 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
         setSalvando(false)
         return
       }
-      await ajustarEstoque(supabase, it.produto!.id, it.localId, -it.quantidade)
-      await somarVendaMesCanal(supabase, it.produto!.id, it.localId, it.quantidade)
+      try {
+        await ajustarEstoque(supabase, it.produto!.id, it.localId, -it.quantidade)
+        await somarVendaMesCanal(supabase, it.produto!.id, it.localId, it.quantidade)
+      } catch {
+        toast.error(`Pedido de "${it.produto!.nome}" foi salvo, mas não deu pra atualizar estoque/vendas. Confira manualmente.`)
+        setSalvando(false)
+        return
+      }
     }
     setSalvando(false)
     toast.success(validados.length === 1 ? 'Pedido lançado com sucesso.' : `${validados.length} pedidos lançados com sucesso.`)

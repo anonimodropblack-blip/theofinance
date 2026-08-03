@@ -7,16 +7,20 @@ export async function ajustarEstoque(
   localId: string,
   delta: number
 ) {
-  const { data: existente } = await supabase
+  const { data: existente, error: erroSelect } = await supabase
     .from('estoque')
     .select('id, quantidade')
     .eq('produto_id', produtoId)
     .eq('local_id', localId)
     .maybeSingle()
 
+  if (erroSelect) throw erroSelect
+
   if (existente) {
-    await supabase.from('estoque').update({ quantidade: existente.quantidade + delta }).eq('id', existente.id)
+    const { error } = await supabase.from('estoque').update({ quantidade: existente.quantidade + delta }).eq('id', existente.id)
+    if (error) throw error
   } else {
-    await supabase.from('estoque').insert({ produto_id: produtoId, local_id: localId, quantidade: delta })
+    const { error } = await supabase.from('estoque').insert({ produto_id: produtoId, local_id: localId, quantidade: delta })
+    if (error) throw error
   }
 }

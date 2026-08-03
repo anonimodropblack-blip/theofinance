@@ -149,8 +149,14 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         custo_frete: custoFrete ? Number(custoFrete.replace(',', '.')) : null,
       })
       if (error) { toast.error(`Erro ao mover "${i.produto.nome}".`); setSalvando(false); return }
-      await ajustarEstoque(supabase, i.produto.id, origemId, -qtd)
-      await ajustarEstoque(supabase, i.produto.id, destinoId, qtd)
+      try {
+        await ajustarEstoque(supabase, i.produto.id, origemId, -qtd)
+        await ajustarEstoque(supabase, i.produto.id, destinoId, qtd)
+      } catch {
+        toast.error(`Movimentação de "${i.produto.nome}" foi salva, mas não deu pra atualizar o estoque. Confira manualmente.`)
+        setSalvando(false)
+        return
+      }
     }
     setSalvando(false)
     toast.success(`${selecionados.length} produto${selecionados.length === 1 ? '' : 's'} movido${selecionados.length === 1 ? '' : 's'}`)
@@ -195,8 +201,14 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         custo_frete: custoFrete ? Number(custoFrete.replace(',', '.')) : null,
       })
       if (error) { toast.error('Erro ao salvar movimentação.'); setSalvando(false); return }
-      await ajustarEstoque(supabase, produto.id, origemId, -qtd)
-      await ajustarEstoque(supabase, produto.id, destinoId, qtd)
+      try {
+        await ajustarEstoque(supabase, produto.id, origemId, -qtd)
+        await ajustarEstoque(supabase, produto.id, destinoId, qtd)
+      } catch {
+        toast.error('Movimentação foi salva, mas não deu pra atualizar o estoque. Confira manualmente.')
+        setSalvando(false)
+        return
+      }
     } else {
       const { error } = await supabase.from('movimentacoes').insert({
         produto_id: produto.id,
@@ -206,7 +218,13 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         observacao: observacao.trim() || null,
       })
       if (error) { toast.error('Erro ao salvar movimentação.'); setSalvando(false); return }
-      await ajustarEstoque(supabase, produto.id, localId, qtd)
+      try {
+        await ajustarEstoque(supabase, produto.id, localId, qtd)
+      } catch {
+        toast.error('Movimentação foi salva, mas não deu pra atualizar o estoque. Confira manualmente.')
+        setSalvando(false)
+        return
+      }
     }
 
     setSalvando(false)

@@ -373,18 +373,24 @@ export default function ProdutosPage() {
     const ids = [...selecionados]
     if (ids.length === 0) return
     setAplicandoEstoque(true)
-    await Promise.all(
-      ids.map(async (id) => {
-        await supabase.from('movimentacoes').insert({
-          produto_id: id,
-          tipo: 'ajuste',
-          quantidade: delta,
-          origem_local_id: localEstoqueMassaId,
-          observacao: 'Ajuste em massa',
+    try {
+      await Promise.all(
+        ids.map(async (id) => {
+          await supabase.from('movimentacoes').insert({
+            produto_id: id,
+            tipo: 'ajuste',
+            quantidade: delta,
+            origem_local_id: localEstoqueMassaId,
+            observacao: 'Ajuste em massa',
+          })
+          await ajustarEstoque(supabase, id, localEstoqueMassaId, delta)
         })
-        await ajustarEstoque(supabase, id, localEstoqueMassaId, delta)
-      })
-    )
+      )
+    } catch {
+      toast.error('Não deu pra atualizar o estoque de todos os produtos. Confira manualmente.')
+      setAplicandoEstoque(false)
+      return
+    }
     setAplicandoEstoque(false)
     setDeltaEstoque('')
     toast.success(`Estoque ajustado em ${ids.length} produto(s)`)
