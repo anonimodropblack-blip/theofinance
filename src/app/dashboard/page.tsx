@@ -5,8 +5,10 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { KpiIcon } from '@/components/dashboard/KpiIcon'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts'
 import { calcularProjecao, calcularProjecaoTotal } from '@/lib/produtos-projecao'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
@@ -402,6 +404,14 @@ export default function DashboardPage() {
     })
   }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
 
+  const dadosCanal = useMemo(
+    () =>
+      [...relatorioCanais]
+        .sort((a, b) => b.faturamento - a.faturamento)
+        .map((c) => ({ nome: c.local.nome, faturamento: c.faturamento })),
+    [relatorioCanais]
+  )
+
   const nomeMesAtual = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   async function fecharMes() {
@@ -490,46 +500,84 @@ export default function DashboardPage() {
 
       {/* Hero — os 3 números que respondem "como a empresa está agora" */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card>
-          <CardHeader>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-primary/25 blur-3xl" />
+          <CardHeader className="relative">
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Receipt className="h-3.5 w-3.5" /> Faturamento Bruto
+              <KpiIcon icon={Receipt} tone="blue" /> Faturamento Bruto
             </CardTitle>
           </CardHeader>
-          <CardContent className={`text-3xl font-semibold tracking-tight ${COR_FATURAMENTO}`}>
+          <CardContent className={`relative text-3xl font-semibold tracking-tight ${COR_FATURAMENTO}`}>
             {formatCurrency(kpis.faturamentoBruto)}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-success/25 blur-3xl" />
+          <CardHeader className="relative">
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <TrendingUp className="h-3.5 w-3.5" /> Lucro Líquido Projetado
+              <KpiIcon icon={TrendingUp} tone="green" /> Lucro Líquido Projetado
             </CardTitle>
           </CardHeader>
-          <CardContent className={`text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+          <CardContent className={`relative text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
             {formatCurrency(kpis.lucroProjetado)}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="relative overflow-hidden">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-chart-5/25 blur-3xl" />
+          <CardHeader className="relative">
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Landmark className="h-3.5 w-3.5" /> Saldo Operacional
+              <KpiIcon icon={Landmark} tone="violet" /> Saldo Operacional
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-3xl font-semibold tracking-tight">
+          <CardContent className="relative text-3xl font-semibold tracking-tight">
             {formatCurrency(financeiroInfo?.saldo.operacional ?? 0)}
           </CardContent>
         </Card>
       </div>
+
+      {dadosCanal.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <KpiIcon icon={Store} tone="violet" /> Faturamento por Canal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dadosCanal} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 8 }}>
+                <XAxis type="number" hide />
+                <YAxis
+                  type="category"
+                  dataKey="nome"
+                  width={110}
+                  tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <Tooltip
+                  cursor={{ fill: 'var(--muted)' }}
+                  contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--popover-foreground)' }}
+                  formatter={(v) => formatCurrency(Number(v))}
+                />
+                <Bar dataKey="faturamento" radius={[0, 6, 6, 0]} barSize={22}>
+                  {dadosCanal.map((_, i) => (
+                    <Cell key={i} fill={`var(--chart-${(i % 5) + 1})`} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grade secundária — o resto do contexto, mais discreto */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Wallet className="h-3.5 w-3.5" /> Investimento Total
+              <KpiIcon icon={Wallet} tone="blue" /> Investimento Total
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -541,7 +589,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Warehouse className="h-3.5 w-3.5" /> Estoque Total
+              <KpiIcon icon={Warehouse} tone="amber" /> Estoque Total
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -553,7 +601,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Percent className="h-3.5 w-3.5" /> Margem Média
+              <KpiIcon icon={Percent} tone="green" /> Margem Média
             </CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
@@ -564,7 +612,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <AlertTriangle className="h-3.5 w-3.5" /> Abaixo da Margem
+              <KpiIcon icon={AlertTriangle} tone="red" /> Abaixo da Margem
             </CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${kpis.produtosAbaixoCount > 0 ? 'text-destructive' : ''}`}>
@@ -575,7 +623,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <ShoppingCart className="h-3.5 w-3.5" /> Pedidos/Mês (estimado)
+              <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos/Mês (estimado)
             </CardTitle>
           </CardHeader>
           <CardContent className="text-lg font-semibold">{kpis.pedidosMes}</CardContent>
@@ -584,7 +632,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Tag className="h-3.5 w-3.5" /> Ticket Médio (estimado)
+              <KpiIcon icon={Tag} tone="green" /> Ticket Médio (estimado)
             </CardTitle>
           </CardHeader>
           <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.ticketMedio)}</CardContent>
@@ -593,7 +641,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <PiggyBank className="h-3.5 w-3.5" /> Saldo Reserva/CDB
+              <KpiIcon icon={PiggyBank} tone="violet" /> Saldo Reserva/CDB
             </CardTitle>
           </CardHeader>
           <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo?.saldo.reserva ?? 0)}</CardContent>
@@ -602,7 +650,7 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Receipt className="h-3.5 w-3.5" /> Custo Fixo Mensal
+              <KpiIcon icon={Receipt} tone="red" /> Custo Fixo Mensal
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -621,7 +669,7 @@ export default function DashboardPage() {
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <Wallet className="h-3.5 w-3.5" /> Gasto com Ads (mês)
+                  <KpiIcon icon={Wallet} tone="violet" /> Gasto com Ads (mês)
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-lg font-semibold">{formatCurrency(kpis.gastoAdsMensal)}</CardContent>
@@ -630,7 +678,7 @@ export default function DashboardPage() {
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <Gauge className="h-3.5 w-3.5" /> TACoS
+                  <KpiIcon icon={Gauge} tone="amber" /> TACoS
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -642,7 +690,7 @@ export default function DashboardPage() {
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <Rocket className="h-3.5 w-3.5" /> ROAS
+                  <KpiIcon icon={Rocket} tone="green" /> ROAS
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -691,7 +739,7 @@ export default function DashboardPage() {
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <HandCoins className="h-3.5 w-3.5" /> Pró-labore Sugerido
+                  <KpiIcon icon={HandCoins} tone="green" /> Pró-labore Sugerido
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -705,7 +753,7 @@ export default function DashboardPage() {
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <Wallet className="h-3.5 w-3.5" /> Já Retirado no Mês
+                  <KpiIcon icon={Wallet} tone="blue" /> Já Retirado no Mês
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
