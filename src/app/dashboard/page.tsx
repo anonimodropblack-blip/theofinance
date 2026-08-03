@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck, Store } from 'lucide-react'
+import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck, Store, Factory, ChevronRight, PackageCheck } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KpiIcon } from '@/components/dashboard/KpiIcon'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from 'recharts'
@@ -189,6 +190,80 @@ export default function DashboardPage() {
     const custoReal = doMes.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
     return { faturamentoReal, custoReal, lucroReal: faturamentoReal - custoReal }
   }, [pedidos, custoAtualPorProduto])
+
+  const operacao = useMemo(() => {
+    const estoquePorProduto = new Map<string, number>()
+    for (const e of estoque) {
+      estoquePorProduto.set(e.produto_id, (estoquePorProduto.get(e.produto_id) ?? 0) + e.quantidade)
+    }
+
+    const ultimaVendaPorProduto = new Map<string, string>()
+    for (const p of pedidos) {
+      const atual = ultimaVendaPorProduto.get(p.produto_id)
+      if (!atual || p.data > atual) ultimaVendaPorProduto.set(p.produto_id, p.data)
+    }
+
+    const DIAS_PARADO = 45
+    const limite = new Date()
+    limite.setDate(limite.getDate() - DIAS_PARADO)
+    const limiteISO = limite.toISOString().slice(0, 10)
+    const hojeISO = new Date().toISOString().slice(0, 10)
+
+    const produtosAtivos = produtos.filter((p) => p.status === 'ativo')
+    const produtosEmEstoqueCount = produtosAtivos.filter((p) => (estoquePorProduto.get(p.id) ?? 0) > 0).length
+
+    const criticos = produtosAtivos.filter((p) => p.qtd_minima != null && (estoquePorProduto.get(p.id) ?? 0) < p.qtd_minima)
+    const semFabricante = produtosAtivos.filter((p) => !p.fabricante)
+    const semPreco = produtosAtivos.filter((p) => p.preco_venda == null)
+    const parados = produtosAtivos.filter((p) => {
+      const qtd = estoquePorProduto.get(p.id) ?? 0
+      if (qtd <= 0) return false
+      const ultimaVenda = ultimaVendaPorProduto.get(p.id)
+      return !ultimaVenda || ultimaVenda < limiteISO
+    })
+    const capitalParado = parados.reduce((s, p) => s + (custoAtualPorProduto.get(p.id) ?? 0) * (estoquePorProduto.get(p.id) ?? 0), 0)
+    const pedidosHoje = pedidos.filter((p) => p.data === hojeISO).length
+    const prolaboreRetiradoEsteMes = lancamentos.some((l) => l.retirada && l.data.slice(0, 7) === primeiroDiaMesAtualISO().slice(0, 7))
+
+    const alertas: { texto: string; href: string; icon: LucideIcon }[] = []
+    if (criticos.length > 0) {
+      alertas.push({
+        texto: `${criticos.length} produto${criticos.length === 1 ? '' : 's'} abaixo do estoque mínimo`,
+        href: '/dashboard/produtos',
+        icon: AlertTriangle,
+      })
+    }
+    if (semFabricante.length > 0) {
+      alertas.push({
+        texto: `${semFabricante.length} produto${semFabricante.length === 1 ? '' : 's'} sem fabricante vinculado`,
+        href: '/dashboard/produtos',
+        icon: Factory,
+      })
+    }
+    if (semPreco.length > 0) {
+      alertas.push({
+        texto: `${semPreco.length} produto${semPreco.length === 1 ? '' : 's'} sem preço de venda definido`,
+        href: '/dashboard/produtos',
+        icon: Tag,
+      })
+    }
+    if (parados.length > 0) {
+      alertas.push({
+        texto: `${parados.length} produto${parados.length === 1 ? '' : 's'} parado${parados.length === 1 ? '' : 's'} há mais de ${DIAS_PARADO} dias (${formatCurrency(capitalParado)} em custo parado)`,
+        href: '/dashboard/produtos',
+        icon: PackageCheck,
+      })
+    }
+    if (!prolaboreRetiradoEsteMes) {
+      alertas.push({
+        texto: 'Pró-labore ainda não foi retirado este mês',
+        href: '/dashboard/financeiro',
+        icon: HandCoins,
+      })
+    }
+
+    return { produtosEmEstoqueCount, criticosCount: criticos.length, capitalParado, pedidosHoje, alertas }
+  }, [produtos, estoque, pedidos, lancamentos, custoAtualPorProduto])
 
   const kpis = useMemo(() => {
     if (!config) return null
@@ -518,44 +593,78 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Hero — os 3 números que respondem "como a empresa está agora" */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-primary/25 blur-3xl" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Receipt} tone="blue" /> Faturamento Bruto
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`relative text-3xl font-semibold tracking-tight ${COR_FATURAMENTO}`}>
-            {formatCurrency(kpis.faturamentoBruto)}
-          </CardContent>
-        </Card>
+      {/* Resumo da Operação — os números que respondem "como a empresa está agora" */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground">Resumo da Operação</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Link href="/dashboard/precificacao" className="block">
+            <Card className="relative overflow-hidden transition-colors hover:border-primary/30">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-primary/25 blur-3xl" />
+              <CardHeader className="relative">
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={Receipt} tone="blue" /> Faturamento Bruto
+                </CardTitle>
+              </CardHeader>
+              <CardContent className={`relative text-3xl font-semibold tracking-tight ${COR_FATURAMENTO}`}>
+                {formatCurrency(kpis.faturamentoBruto)}
+              </CardContent>
+            </Card>
+          </Link>
 
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-success/25 blur-3xl" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={TrendingUp} tone="green" /> Lucro Líquido Projetado
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`relative text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
-            {formatCurrency(kpis.lucroProjetado)}
-          </CardContent>
-        </Card>
+          <Link href="/dashboard/precificacao" className="block">
+            <Card className="relative overflow-hidden transition-colors hover:border-primary/30">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-success/25 blur-3xl" />
+              <CardHeader className="relative">
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={TrendingUp} tone="green" /> Lucro Líquido Projetado
+                </CardTitle>
+              </CardHeader>
+              <CardContent className={`relative text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+                {formatCurrency(kpis.lucroProjetado)}
+              </CardContent>
+            </Card>
+          </Link>
 
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-chart-5/25 blur-3xl" />
-          <CardHeader className="relative">
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Landmark} tone="violet" /> Saldo Operacional
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="relative text-3xl font-semibold tracking-tight">
-            {formatCurrency(financeiroInfo?.saldo.operacional ?? 0)}
-          </CardContent>
-        </Card>
+          <Link href="/dashboard/financeiro" className="block">
+            <Card className="relative overflow-hidden transition-colors hover:border-primary/30">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-chart-5/25 blur-3xl" />
+              <CardHeader className="relative">
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={Landmark} tone="violet" /> Saldo Operacional
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="relative text-3xl font-semibold tracking-tight">
+                {formatCurrency(financeiroInfo?.saldo.operacional ?? 0)}
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
       </div>
+
+      {operacao.alertas.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <AlertTriangle className="h-4 w-4" /> Central de Alertas
+          </h2>
+          <Card className="py-1">
+            <div className="divide-y divide-border">
+              {operacao.alertas.map((alerta, i) => (
+                <Link
+                  key={i}
+                  href={alerta.href}
+                  className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-accent"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning">
+                    <alerta.icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">{alerta.texto}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </Link>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div>
@@ -567,25 +676,29 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                <KpiIcon icon={Receipt} tone="blue" /> Faturamento Real
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-2xl font-semibold tracking-tight">{formatCurrency(vendasReaisMes.faturamentoReal)}</CardContent>
-          </Card>
+          <Link href="/dashboard/pedidos" className="block">
+            <Card size="sm" className="transition-colors hover:border-primary/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={Receipt} tone="blue" /> Faturamento Real
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold tracking-tight">{formatCurrency(vendasReaisMes.faturamentoReal)}</CardContent>
+            </Card>
+          </Link>
 
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                <KpiIcon icon={TrendingUp} tone="green" /> Lucro Real
-              </CardTitle>
-            </CardHeader>
-            <CardContent className={`text-2xl font-semibold tracking-tight ${vendasReaisMes.lucroReal < 0 ? 'text-destructive' : ''}`}>
-              {formatCurrency(vendasReaisMes.lucroReal)}
-            </CardContent>
-          </Card>
+          <Link href="/dashboard/pedidos" className="block">
+            <Card size="sm" className="transition-colors hover:border-primary/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={TrendingUp} tone="green" /> Lucro Real
+                </CardTitle>
+              </CardHeader>
+              <CardContent className={`text-2xl font-semibold tracking-tight ${vendasReaisMes.lucroReal < 0 ? 'text-destructive' : ''}`}>
+                {formatCurrency(vendasReaisMes.lucroReal)}
+              </CardContent>
+            </Card>
+          </Link>
         </div>
       </div>
 
@@ -626,90 +739,155 @@ export default function DashboardPage() {
 
       {/* Grade secundária — o resto do contexto, mais discreto */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Wallet} tone="blue" /> Investimento Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-semibold">{formatCurrency(kpis.investimentoTotal)}</div>
-            <div className="text-xs text-muted-foreground">{formatCurrency(kpis.investimentoMercadoria)} só em produtos</div>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/produtos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Wallet} tone="blue" /> Investimento Total
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold">{formatCurrency(kpis.investimentoTotal)}</div>
+              <div className="text-xs text-muted-foreground">{formatCurrency(kpis.investimentoMercadoria)} só em produtos</div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Warehouse} tone="amber" /> Estoque Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-semibold">{kpis.estoqueUnidades} un.</div>
-            <div className="text-xs text-muted-foreground">{formatCurrency(kpis.estoqueValor)} em custo</div>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/estoque" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Warehouse} tone="amber" /> Estoque Total
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold">{kpis.estoqueUnidades} un.</div>
+              <div className="text-xs text-muted-foreground">{formatCurrency(kpis.estoqueValor)} em custo</div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Percent} tone="green" /> Margem Média
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
-            {kpis.temEstoqueComMargem ? formatPct(kpis.margemMedia * 100) : '—'}
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/estoque" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={PackageCheck} tone="blue" /> Produtos em Estoque
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-lg font-semibold">{operacao.produtosEmEstoqueCount}</CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={AlertTriangle} tone="red" /> Abaixo da Margem
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`text-lg font-semibold ${kpis.produtosAbaixoCount > 0 ? 'text-destructive' : ''}`}>
-            {kpis.produtosAbaixoCount} produto{kpis.produtosAbaixoCount === 1 ? '' : 's'}
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/produtos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={AlertTriangle} tone="red" /> Produtos Críticos
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={`text-lg font-semibold ${operacao.criticosCount > 0 ? 'text-destructive' : ''}`}>
+              {operacao.criticosCount} produto{operacao.criticosCount === 1 ? '' : 's'}
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos/Mês (estimado)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg font-semibold">{kpis.pedidosMes}</CardContent>
-        </Card>
+        <Link href="/dashboard/produtos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Boxes} tone="amber" /> Capital Parado
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold">{formatCurrency(operacao.capitalParado)}</div>
+              <div className="text-xs text-muted-foreground">produtos sem venda há 45+ dias</div>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Tag} tone="green" /> Ticket Médio (estimado)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.ticketMedio)}</CardContent>
-        </Card>
+        <Link href="/dashboard/precificacao" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Percent} tone="green" /> Margem Média
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+              {kpis.temEstoqueComMargem ? formatPct(kpis.margemMedia * 100) : '—'}
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={PiggyBank} tone="violet" /> Saldo Reserva/CDB
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo?.saldo.reserva ?? 0)}</CardContent>
-        </Card>
+        <Link href="/dashboard/precificacao" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={AlertTriangle} tone="red" /> Abaixo da Margem
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={`text-lg font-semibold ${kpis.produtosAbaixoCount > 0 ? 'text-destructive' : ''}`}>
+              {kpis.produtosAbaixoCount} produto{kpis.produtosAbaixoCount === 1 ? '' : 's'}
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Receipt} tone="red" /> Custo Fixo Mensal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-lg font-semibold">{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
-            <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
-          </CardContent>
-        </Card>
+        <Link href="/dashboard/pedidos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos do Dia
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-lg font-semibold">{operacao.pedidosHoje}</CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/pedidos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos/Mês (estimado)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-lg font-semibold">{kpis.pedidosMes}</CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/pedidos" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Tag} tone="green" /> Ticket Médio (estimado)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.ticketMedio)}</CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/financeiro" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={PiggyBank} tone="violet" /> Saldo Reserva/CDB
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo?.saldo.reserva ?? 0)}</CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/dashboard/configuracoes" className="block">
+          <Card size="sm" className="transition-colors hover:border-primary/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Receipt} tone="red" /> Custo Fixo Mensal
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold">{formatCurrency(config?.custo_fixo_mensal ?? 0)}</div>
+              <div className="text-xs text-muted-foreground">assinaturas/mensalidades de marketplace</div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {kpis.gastoAdsMensal > 0 && (
@@ -718,38 +896,44 @@ export default function DashboardPage() {
             <Megaphone className="h-4 w-4" /> Ads
           </h2>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <KpiIcon icon={Wallet} tone="violet" /> Gasto com Ads (mês)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-lg font-semibold">{formatCurrency(kpis.gastoAdsMensal)}</CardContent>
-            </Card>
+            <Link href="/dashboard/produtos" className="block">
+              <Card size="sm" className="transition-colors hover:border-primary/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                    <KpiIcon icon={Wallet} tone="violet" /> Gasto com Ads (mês)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-lg font-semibold">{formatCurrency(kpis.gastoAdsMensal)}</CardContent>
+              </Card>
+            </Link>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <KpiIcon icon={Gauge} tone="amber" /> TACoS
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-lg font-semibold">{formatPctNullable(kpis.tacosPct)}</div>
-                <div className="text-xs text-muted-foreground">% do faturamento gasto em ads</div>
-              </CardContent>
-            </Card>
+            <Link href="/dashboard/produtos" className="block">
+              <Card size="sm" className="transition-colors hover:border-primary/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                    <KpiIcon icon={Gauge} tone="amber" /> TACoS
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-semibold">{formatPctNullable(kpis.tacosPct)}</div>
+                  <div className="text-xs text-muted-foreground">% do faturamento gasto em ads</div>
+                </CardContent>
+              </Card>
+            </Link>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <KpiIcon icon={Rocket} tone="green" /> ROAS
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-lg font-semibold">{formatRoas(kpis.roas)}</div>
-                <div className="text-xs text-muted-foreground">retorno pra cada R$ 1 em ads</div>
-              </CardContent>
-            </Card>
+            <Link href="/dashboard/produtos" className="block">
+              <Card size="sm" className="transition-colors hover:border-primary/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                    <KpiIcon icon={Rocket} tone="green" /> ROAS
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-semibold">{formatRoas(kpis.roas)}</div>
+                  <div className="text-xs text-muted-foreground">retorno pra cada R$ 1 em ads</div>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </div>
       )}
@@ -802,14 +986,16 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <KpiIcon icon={Wallet} tone="blue" /> Já Retirado no Mês
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
-            </Card>
+            <Link href="/dashboard/financeiro" className="block">
+              <Card size="sm" className="transition-colors hover:border-primary/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                    <KpiIcon icon={Wallet} tone="blue" /> Já Retirado no Mês
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
+              </Card>
+            </Link>
           </div>
 
           {financeiroInfo.alocacaoSugerida.length > 0 && (
@@ -845,7 +1031,11 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-border">
               {ultimosLotes.map((l) => (
-                <div key={l.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                <Link
+                  key={l.id}
+                  href={`/dashboard/lotes/${l.id}/custos`}
+                  className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-accent"
+                >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
                     <Boxes className="h-4 w-4" />
                   </div>
@@ -855,7 +1045,7 @@ export default function DashboardPage() {
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">{formatData(l.data)}</span>
                   <span className="w-16 shrink-0 text-right font-medium">{l.quantidade} un.</span>
-                </div>
+                </Link>
               ))}
             </div>
           )}
@@ -900,12 +1090,16 @@ export default function DashboardPage() {
               {relatorioProdutos.map(({ produto, margemPct, lucroMes, vendasQtd }) => {
                 const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
                 return (
-                  <div key={produto.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                  <Link
+                    key={produto.id}
+                    href={`/dashboard/produtos?busca=${encodeURIComponent(produto.nome)}`}
+                    className="flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-accent"
+                  >
                     <p className="min-w-0 flex-1 truncate font-medium">{produto.nome}</p>
                     <span className="w-20 shrink-0 text-right text-muted-foreground">{vendasQtd || '—'} vendas</span>
                     <span className={`w-20 shrink-0 text-right font-medium ${corMargemProduto}`}>{formatPctNullable(margemPct)}</span>
                     <span className={`w-28 shrink-0 text-right font-semibold ${corMargemProduto}`}>{formatCurrencyNullable(lucroMes)}</span>
-                  </div>
+                  </Link>
                 )
               })}
             </div>

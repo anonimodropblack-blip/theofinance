@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -121,7 +122,8 @@ export default function ProdutosPage() {
   const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState('')
+  const searchParams = useSearchParams()
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Produto | null>(null)
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())

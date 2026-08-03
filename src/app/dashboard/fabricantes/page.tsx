@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +28,8 @@ export default function FabricantesPage() {
   const supabase = createClient()
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
   const [loading, setLoading] = useState(true)
-  const [busca, setBusca] = useState('')
+  const searchParams = useSearchParams()
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Fabricante | null>(null)
 
