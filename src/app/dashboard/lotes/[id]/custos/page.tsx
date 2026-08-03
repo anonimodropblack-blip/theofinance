@@ -215,22 +215,26 @@ export default function CustosLotePage() {
           <ArrowLeft className="h-3.5 w-3.5" />
           Lotes
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
-          Custos do{' '}
-          <CelulaEditavel
-            valor={lote?.codigo ?? ''}
-            onSalvar={(v) => renomearLote('codigo', v)}
-          />
+        <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 min-w-0">
+          <span className="shrink-0">Custos do</span>
+          <span className="min-w-0 flex-1">
+            <CelulaEditavel
+              valor={lote?.codigo ?? ''}
+              onSalvar={(v) => renomearLote('codigo', v)}
+            />
+          </span>
         </h1>
-        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
-          <CelulaEditavel
-            valor={lote?.fornecedor ?? ''}
-            onSalvar={(v) => renomearLote('fornecedor', v)}
-          />
-          <span>· {totalUnidades} unidades ·</span>
+        <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5 min-w-0">
+          <span className="min-w-0 flex-1">
+            <CelulaEditavel
+              valor={lote?.fornecedor ?? ''}
+              onSalvar={(v) => renomearLote('fornecedor', v)}
+            />
+          </span>
+          <span className="shrink-0">· {totalUnidades} unidades ·</span>
           <Input
             type="date"
-            className="h-6 w-auto px-1.5 py-0 text-sm border-transparent bg-transparent hover:border-input focus-visible:border-ring"
+            className="h-6 w-auto shrink-0 px-1.5 py-0 text-sm border-transparent bg-transparent hover:border-input focus-visible:border-ring"
             value={lote?.data ?? ''}
             onChange={(e) => atualizarData(e.target.value)}
           />
