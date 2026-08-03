@@ -155,6 +155,17 @@ export interface VendaMesCanal {
   quantidade: number
 }
 
+export interface Pedido {
+  id: string
+  produto_id: string
+  local_id: string
+  quantidade: number
+  preco_unitario: number
+  data: string
+  observacao: string | null
+  created_at: string
+}
+
 export interface FechamentoMensal {
   id: string
   mes_referencia: string

@@ -18,7 +18,7 @@ import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoMes } from '@/lib
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { toast } from 'sonner'
-import type { Caixinha, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Produto, VendaMesCanal } from '@/types'
+import type { Caixinha, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
   const [lancamentos, setLancamentos] = useState<LancamentoFinanceiro[]>([])
+  const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
   const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
   const [fechando, setFechando] = useState(false)
@@ -89,6 +90,7 @@ export default function DashboardPage() {
       { data: fxsPreco },
       { data: cxs },
       { data: lancs },
+      { data: peds },
       { data: vendasCanalData },
       { data: fechamento },
     ] = await Promise.all([
@@ -103,6 +105,7 @@ export default function DashboardPage() {
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('caixinhas').select('*').eq('ativo', true).order('ordem'),
       supabase.from('lancamentos_financeiros').select('*'),
+      supabase.from('pedidos').select('*'),
       supabase.from('vendas_mes_canal').select('*'),
       supabase.from('fechamentos_mensais').select('*').eq('mes_referencia', primeiroDiaMesAtualISO()).maybeSingle(),
     ])
@@ -123,6 +126,7 @@ export default function DashboardPage() {
     )
     setCaixinhas((cxs ?? []) as Caixinha[])
     setLancamentos((lancs ?? []) as LancamentoFinanceiro[])
+    setPedidos((peds ?? []) as Pedido[])
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
     setFechamentoAtual((fechamento ?? null) as FechamentoMensal | null)
     setLoading(false)
@@ -136,28 +140,20 @@ export default function DashboardPage() {
     setAtualizando(false)
   }
 
-  const kpis = useMemo(() => {
-    if (!config) return null
-
-    const margemMinimaPct = (config.margem_minima_percentual ?? 0) / 100
-    const localPorId = new Map(locais.map((l) => [l.id, l]))
-    const produtoPorId = new Map(produtos.map((p) => [p.id, p]))
-
-    // total de unidades por lote (converte custos "por_unidade" -> total do lote)
-    const unidadesPorLote = new Map<string, number>()
+  // total de unidades por lote (converte custos "por_unidade" -> total do lote) — usado
+  // tanto pro investimento logístico quanto pro custo atual por produto abaixo.
+  const unidadesPorLote = useMemo(() => {
+    const mapa = new Map<string, number>()
     for (const item of loteItens) {
-      unidadesPorLote.set(item.lote_id, (unidadesPorLote.get(item.lote_id) ?? 0) + item.quantidade)
+      mapa.set(item.lote_id, (mapa.get(item.lote_id) ?? 0) + item.quantidade)
     }
+    return mapa
+  }, [loteItens])
 
-    // investimento total histórico: custo de mercadoria + custos logísticos de todos os lotes
-    const investimentoMercadoria = loteItens.reduce((s, i) => s + (i.custo_unitario ?? 0) * i.quantidade, 0)
-    const investimentoLogistica = loteCustos.reduce((s, c) => {
-      const totalLote = unidadesPorLote.get(c.lote_id) ?? 0
-      return s + (c.modo === 'total' ? c.valor : c.valor * totalLote)
-    }, 0)
-    const investimentoTotal = investimentoMercadoria + investimentoLogistica
-
-    // custo logístico por unidade, por lote
+  // custo atual por produto: lote mais recente que contém aquele produto (mesmo critério
+  // da Precificação) — extraído do cálculo de KPIs pra também alimentar o Lucro Real
+  // (calculado a partir dos pedidos reais lançados, não da projeção).
+  const custoAtualPorProduto = useMemo(() => {
     const custoLogisticaPorLote = new Map<string, number>()
     for (const c of loteCustos) {
       const totalLote = unidadesPorLote.get(c.lote_id) ?? 0
@@ -165,7 +161,6 @@ export default function DashboardPage() {
       custoLogisticaPorLote.set(c.lote_id, (custoLogisticaPorLote.get(c.lote_id) ?? 0) + porUnidade)
     }
 
-    // custo atual por produto: lote mais recente que contém aquele produto (mesmo critério da Precificação)
     const itensPorProduto = new Map<string, LoteItemComLote[]>()
     for (const item of loteItens) {
       const lista = itensPorProduto.get(item.produto_id) ?? []
@@ -173,7 +168,7 @@ export default function DashboardPage() {
       itensPorProduto.set(item.produto_id, lista)
     }
 
-    const custoAtualPorProduto = new Map<string, number>()
+    const mapa = new Map<string, number>()
     for (const [produtoId, itens] of itensPorProduto) {
       const maisRecente = [...itens].sort((a, b) => {
         const porData = new Date(b.lote.data).getTime() - new Date(a.lote.data).getTime()
@@ -182,8 +177,33 @@ export default function DashboardPage() {
       })[0]
       const custoProduto = maisRecente.custo_unitario ?? 0
       const custoLogistica = custoLogisticaPorLote.get(maisRecente.lote_id) ?? 0
-      custoAtualPorProduto.set(produtoId, custoProduto + custoLogistica)
+      mapa.set(produtoId, custoProduto + custoLogistica)
     }
+    return mapa
+  }, [loteItens, loteCustos, unidadesPorLote])
+
+  const vendasReaisMes = useMemo(() => {
+    const mesAtual = primeiroDiaMesAtualISO().slice(0, 7)
+    const doMes = pedidos.filter((p) => p.data.slice(0, 7) === mesAtual)
+    const faturamentoReal = doMes.reduce((s, p) => s + p.quantidade * p.preco_unitario, 0)
+    const custoReal = doMes.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
+    return { faturamentoReal, custoReal, lucroReal: faturamentoReal - custoReal }
+  }, [pedidos, custoAtualPorProduto])
+
+  const kpis = useMemo(() => {
+    if (!config) return null
+
+    const margemMinimaPct = (config.margem_minima_percentual ?? 0) / 100
+    const localPorId = new Map(locais.map((l) => [l.id, l]))
+    const produtoPorId = new Map(produtos.map((p) => [p.id, p]))
+
+    // investimento total histórico: custo de mercadoria + custos logísticos de todos os lotes
+    const investimentoMercadoria = loteItens.reduce((s, i) => s + (i.custo_unitario ?? 0) * i.quantidade, 0)
+    const investimentoLogistica = loteCustos.reduce((s, c) => {
+      const totalLote = unidadesPorLote.get(c.lote_id) ?? 0
+      return s + (c.modo === 'total' ? c.valor : c.valor * totalLote)
+    }, 0)
+    const investimentoTotal = investimentoMercadoria + investimentoLogistica
 
     // estoque total (unidades + valor ao custo atual)
     let estoqueUnidades = 0
@@ -284,7 +304,7 @@ export default function DashboardPage() {
       tacosPct,
       roas,
     }
-  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
+  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, unidadesPorLote, custoAtualPorProduto])
 
   const financeiroInfo = useMemo(() => {
     if (!config) return null
@@ -535,6 +555,38 @@ export default function DashboardPage() {
             {formatCurrency(financeiroInfo?.saldo.operacional ?? 0)}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <ShoppingCart className="h-4 w-4" /> Vendas Reais do Mês
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            A partir dos pedidos lançados — diferente da projeção acima, que usa o preço cadastrado do produto.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={Receipt} tone="blue" /> Faturamento Real
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold tracking-tight">{formatCurrency(vendasReaisMes.faturamentoReal)}</CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                <KpiIcon icon={TrendingUp} tone="green" /> Lucro Real
+              </CardTitle>
+            </CardHeader>
+            <CardContent className={`text-2xl font-semibold tracking-tight ${vendasReaisMes.lucroReal < 0 ? 'text-destructive' : ''}`}>
+              {formatCurrency(vendasReaisMes.lucroReal)}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {dadosCanal.length > 0 && (

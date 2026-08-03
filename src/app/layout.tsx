@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import InstallPwaPrompt from "@/components/InstallPwaPrompt";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -45,7 +44,6 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
-        <InstallPwaPrompt />
         <ServiceWorkerRegister />
         <Toaster />
       </body>

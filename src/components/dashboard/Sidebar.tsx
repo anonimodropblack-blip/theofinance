@@ -16,10 +16,12 @@ import {
   Factory,
   Wallet,
   History,
+  ShoppingCart,
 } from 'lucide-react'
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
   { href: '/dashboard/fabricantes', label: 'Fabricantes', icon: Factory },
   { href: '/dashboard/lotes', label: 'Lotes', icon: Boxes },
