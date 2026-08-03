@@ -3,10 +3,35 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogoutButton } from '@/components/LogoutButton'
-import { CommandPalette, type CommandPaletteItem } from '@/components/CommandPalette'
+import { CommandPalette } from '@/components/CommandPalette'
 import { cn } from '@/lib/utils'
+import {
+  LayoutDashboard,
+  Package,
+  Boxes,
+  Tags,
+  Warehouse,
+  Calculator,
+  Settings,
+  Factory,
+  Wallet,
+  History,
+} from 'lucide-react'
 
-export function Sidebar({ items }: { items: CommandPaletteItem[] }) {
+const NAV = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/produtos', label: 'Produtos', icon: Package },
+  { href: '/dashboard/fabricantes', label: 'Fabricantes', icon: Factory },
+  { href: '/dashboard/lotes', label: 'Lotes', icon: Boxes },
+  { href: '/dashboard/precificacao', label: 'Precificação', icon: Calculator },
+  { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse },
+  { href: '/dashboard/movimentacoes', label: 'Movimentações', icon: Tags },
+  { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet },
+  { href: '/dashboard/historico', label: 'Histórico', icon: History },
+  { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
+]
+
+export function Sidebar() {
   const pathname = usePathname()
 
   return (
@@ -15,10 +40,10 @@ export function Sidebar({ items }: { items: CommandPaletteItem[] }) {
         <span className="text-sm font-semibold tracking-tight">ERP Elysiar</span>
       </div>
       <div className="px-3 pb-3">
-        <CommandPalette items={items} />
+        <CommandPalette items={NAV} />
       </div>
       <nav className="flex-1 space-y-0.5 px-3">
-        {items.map(({ href, label, icon: Icon }) => {
+        {NAV.map(({ href, label, icon: Icon }) => {
           const active = href === '/dashboard' ? pathname === href : pathname.startsWith(href)
           return (
             <Link
