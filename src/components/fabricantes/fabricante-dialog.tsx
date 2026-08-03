@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { MaisOpcoes } from '@/components/ui/mais-opcoes'
 import type { Fabricante } from '@/types'
 
 type Props = {
@@ -75,6 +76,10 @@ export function FabricanteDialog({ open, onOpenChange, fabricante, onSaved }: Pr
     onSaved()
   }
 
+  const temOpcoesPreenchidas = Boolean(
+    fabricante?.telefone || fabricante?.whatsapp || fabricante?.email || fabricante?.site || fabricante?.endereco || fabricante?.contato_responsavel
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -87,37 +92,39 @@ export function FabricanteDialog({ open, onOpenChange, fabricante, onSaved }: Pr
             <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required autoFocus />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="telefone">Telefone</Label>
-              <Input id="telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+          <MaisOpcoes defaultOpen={temOpcoesPreenchidas}>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="telefone">Telefone</Label>
+                <Input id="telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="whatsapp">WhatsApp</Label>
+                <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp">WhatsApp</Label>
-              <Input id="whatsapp" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="email">E-mail</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="site">Site</Label>
+                <Input id="site" value={site} onChange={(e) => setSite(e.target.value)} />
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="site">Site</Label>
-              <Input id="site" value={site} onChange={(e) => setSite(e.target.value)} />
+              <Label htmlFor="contato_responsavel">Contato responsável</Label>
+              <Input id="contato_responsavel" value={contatoResponsavel} onChange={(e) => setContatoResponsavel(e.target.value)} placeholder="Nome de quem você fala normalmente" />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="contato_responsavel">Contato responsável</Label>
-            <Input id="contato_responsavel" value={contatoResponsavel} onChange={(e) => setContatoResponsavel(e.target.value)} placeholder="Nome de quem você fala normalmente" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="endereco">Endereço</Label>
-            <Input id="endereco" value={endereco} onChange={(e) => setEndereco(e.target.value)} />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="endereco">Endereço</Label>
+              <Input id="endereco" value={endereco} onChange={(e) => setEndereco(e.target.value)} />
+            </div>
+          </MaisOpcoes>
 
           <DialogFooter>
             <Button type="submit" disabled={saving}>

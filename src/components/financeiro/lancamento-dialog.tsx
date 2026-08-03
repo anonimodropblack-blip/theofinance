@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { MaisOpcoes } from '@/components/ui/mais-opcoes'
 import type { Caixinha, LancamentoFinanceiro } from '@/types'
 
 type Props = {
@@ -104,6 +105,10 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
     onSaved()
   }
 
+  const temOpcoesPreenchidas = Boolean(
+    retiradaInicial || (lancamento && (lancamento.conta !== 'operacional' || lancamento.retirada || lancamento.caixinha_id || lancamento.descricao))
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -112,23 +117,40 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Tipo</Label>
+            <Select
+              value={tipo}
+              onValueChange={(v) => setTipo((v ?? 'saida') as 'entrada' | 'saida')}
+              items={{ entrada: 'Entrada (recebi)', saida: 'Saída (gastei/tirei)' }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="entrada">Entrada (recebi)</SelectItem>
+                <SelectItem value="saida">Saída (gastei/tirei)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select
-                value={tipo}
-                onValueChange={(v) => setTipo((v ?? 'saida') as 'entrada' | 'saida')}
-                items={{ entrada: 'Entrada (recebi)', saida: 'Saída (gastei/tirei)' }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="entrada">Entrada (recebi)</SelectItem>
-                  <SelectItem value="saida">Saída (gastei/tirei)</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Valor (R$)</Label>
+              <Input inputMode="decimal" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label>Data</Label>
+              <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Categoria (opcional)</Label>
+            <Input placeholder="ex: Venda Shopee, conta de luz..." value={categoria} onChange={(e) => setCategoria(e.target.value)} />
+          </div>
+
+          <MaisOpcoes defaultOpen={temOpcoesPreenchidas}>
             <div className="space-y-2">
               <Label>Conta</Label>
               <Select
@@ -145,56 +167,40 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          {tipo === 'saida' && (
-            <div className="flex items-center gap-2">
-              <Checkbox id="retirada" checked={retirada} onCheckedChange={(v) => setRetirada(v === true)} />
-              <Label htmlFor="retirada" className="font-normal">É retirada do meu salário?</Label>
-            </div>
-          )}
+            {tipo === 'saida' && (
+              <div className="flex items-center gap-2">
+                <Checkbox id="retirada" checked={retirada} onCheckedChange={(v) => setRetirada(v === true)} />
+                <Label htmlFor="retirada" className="font-normal">É retirada do meu salário?</Label>
+              </div>
+            )}
 
-          {tipo === 'saida' && caixinhas.length > 0 && (
+            {tipo === 'saida' && caixinhas.length > 0 && (
+              <div className="space-y-2">
+                <Label>Vincular a uma caixinha (opcional)</Label>
+                <Select
+                  value={caixinhaId}
+                  onValueChange={(v) => setCaixinhaId(v ?? '')}
+                  items={{ '': 'Nenhuma', ...Object.fromEntries(caixinhas.map((c) => [c.id, c.nome])) }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Nenhuma" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma</SelectItem>
+                    {caixinhas.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <Label>Vincular a uma caixinha (opcional)</Label>
-              <Select
-                value={caixinhaId}
-                onValueChange={(v) => setCaixinhaId(v ?? '')}
-                items={{ '': 'Nenhuma', ...Object.fromEntries(caixinhas.map((c) => [c.id, c.nome])) }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Nenhuma" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Nenhuma</SelectItem>
-                  {caixinhas.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Descrição (opcional)</Label>
+              <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} />
             </div>
-          )}
-
-          <div className="space-y-2">
-            <Label>Categoria (opcional)</Label>
-            <Input placeholder="ex: Venda Shopee, conta de luz..." value={categoria} onChange={(e) => setCategoria(e.target.value)} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Valor (R$)</Label>
-              <Input inputMode="decimal" placeholder="0,00" value={valor} onChange={(e) => setValor(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Data</Label>
-              <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Descrição (opcional)</Label>
-            <Textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} />
-          </div>
+          </MaisOpcoes>
         </div>
 
         <DialogFooter>

@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { FabricanteInput } from './fabricante-input'
+import { MaisOpcoes } from '@/components/ui/mais-opcoes'
 import type { Fabricante, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
 
 const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
@@ -123,6 +124,18 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
     onSaved()
   }
 
+  const temOpcoesPreenchidas = Boolean(
+    produto?.sku ||
+      produto?.composicao ||
+      produto?.quantidade_embalagem != null ||
+      produto?.unidade_embalagem ||
+      produto?.tipo ||
+      produto?.qtd_minima != null ||
+      produto?.preco_custo_unitario != null ||
+      produto?.peso_gramas != null ||
+      Object.values(vendasCanalProduto).some((v) => v > 0)
+  )
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -134,15 +147,9 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
             <Label htmlFor="nome">Nome</Label>
             <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} required autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="fabricante">Fabricante</Label>
-              <FabricanteInput value={fabricante} onChange={setFabricante} fabricantes={fabricantes} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sku">SKU</Label>
-              <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="fabricante">Fabricante</Label>
+            <FabricanteInput value={fabricante} onChange={setFabricante} fabricantes={fabricantes} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
@@ -173,96 +180,104 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="composicao">Composição / Dosagem</Label>
-            <Input id="composicao" value={composicao} onChange={(e) => setComposicao(e.target.value)} placeholder="Ex: Coenzima Q10 200mg" />
-          </div>
+          <MaisOpcoes defaultOpen={temOpcoesPreenchidas}>
+            <div className="space-y-2">
+              <Label htmlFor="sku">SKU</Label>
+              <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} />
+            </div>
 
-          <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="quantidade_embalagem">Quantidade</Label>
-              <Input id="quantidade_embalagem" inputMode="numeric" placeholder="60" value={quantidadeEmbalagem} onChange={(e) => setQuantidadeEmbalagem(e.target.value)} />
+              <Label htmlFor="composicao">Composição / Dosagem</Label>
+              <Input id="composicao" value={composicao} onChange={(e) => setComposicao(e.target.value)} placeholder="Ex: Coenzima Q10 200mg" />
             </div>
-            <div className="space-y-2">
-              <Label>Unidade</Label>
-              <Select
-                value={unidadeEmbalagem}
-                onValueChange={(v) => setUnidadeEmbalagem((v as UnidadeEmbalagem) ?? '')}
-                items={Object.fromEntries(UNIDADES_EMBALAGEM.map((u) => [u, u]))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {UNIDADES_EMBALAGEM.map((u) => (
-                    <SelectItem key={u} value={u}>{u}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo</Label>
-              <Select
-                value={tipo}
-                onValueChange={(v) => setTipo((v as TipoProduto) ?? '')}
-                items={Object.fromEntries(TIPOS_PRODUTO.map((t) => [t, t]))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecionar..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPOS_PRODUTO.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="qtd_minima">Qtd. mínima (fábrica)</Label>
-              <Input id="qtd_minima" inputMode="numeric" placeholder="0" value={qtdMinima} onChange={(e) => setQtdMinima(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="preco_custo_unitario">Preço por und. (R$)</Label>
-              <Input
-                id="preco_custo_unitario"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={precoCustoUnitario}
-                onChange={(e) => setPrecoCustoUnitario(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Vendas/mês por canal</Label>
-            {locaisMarketplace.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Nenhum marketplace ativo cadastrado ainda.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {locaisMarketplace.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-muted-foreground">{l.nome}</span>
-                    <Input
-                      inputMode="numeric"
-                      placeholder="0"
-                      className="w-24 text-right"
-                      value={vendasPorCanal[l.id] ?? ''}
-                      onChange={(e) => setVendasPorCanal((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                    />
-                  </div>
-                ))}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="quantidade_embalagem">Quantidade</Label>
+                <Input id="quantidade_embalagem" inputMode="numeric" placeholder="60" value={quantidadeEmbalagem} onChange={(e) => setQuantidadeEmbalagem(e.target.value)} />
               </div>
-            )}
-          </div>
+              <div className="space-y-2">
+                <Label>Unidade</Label>
+                <Select
+                  value={unidadeEmbalagem}
+                  onValueChange={(v) => setUnidadeEmbalagem((v as UnidadeEmbalagem) ?? '')}
+                  items={Object.fromEntries(UNIDADES_EMBALAGEM.map((u) => [u, u]))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES_EMBALAGEM.map((u) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select
+                  value={tipo}
+                  onValueChange={(v) => setTipo((v as TipoProduto) ?? '')}
+                  items={Object.fromEntries(TIPOS_PRODUTO.map((t) => [t, t]))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecionar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_PRODUTO.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="peso_gramas">Peso (gramas)</Label>
-            <Input id="peso_gramas" inputMode="numeric" placeholder="0" className="max-w-[140px]" value={pesoGramas} onChange={(e) => setPesoGramas(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Usado pra calcular a tarifa de logística da Amazon FBA na Precificação.</p>
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="qtd_minima">Qtd. mínima (fábrica)</Label>
+                <Input id="qtd_minima" inputMode="numeric" placeholder="0" value={qtdMinima} onChange={(e) => setQtdMinima(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="preco_custo_unitario">Preço por und. (R$)</Label>
+                <Input
+                  id="preco_custo_unitario"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={precoCustoUnitario}
+                  onChange={(e) => setPrecoCustoUnitario(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vendas/mês por canal</Label>
+              <p className="text-xs text-muted-foreground">Estimativa manual — se você já lança pedidos em Pedidos, isso é atualizado sozinho.</p>
+              {locaisMarketplace.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum marketplace ativo cadastrado ainda.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {locaisMarketplace.map((l) => (
+                    <div key={l.id} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-muted-foreground">{l.nome}</span>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0"
+                        className="w-24 text-right"
+                        value={vendasPorCanal[l.id] ?? ''}
+                        onChange={(e) => setVendasPorCanal((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="peso_gramas">Peso (gramas)</Label>
+              <Input id="peso_gramas" inputMode="numeric" placeholder="0" className="max-w-[140px]" value={pesoGramas} onChange={(e) => setPesoGramas(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Usado pra calcular a tarifa de logística da Amazon FBA na Precificação.</p>
+            </div>
+          </MaisOpcoes>
 
           <DialogFooter>
             <Button type="submit" disabled={saving}>

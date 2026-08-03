@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ProdutoAutocomplete } from '@/components/produtos/produto-autocomplete'
+import { MaisOpcoes } from '@/components/ui/mais-opcoes'
 import { toast } from 'sonner'
 import { Loader2, X, Package, Boxes } from 'lucide-react'
 import type { LocalEstoque, Lote, Produto } from '@/types'
@@ -399,7 +400,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
           )}
 
           {tipo === 'envio' && (
-            <>
+            <MaisOpcoes>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Qtd. de caixas</Label>
@@ -433,7 +434,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
                   />
                 </div>
               </div>
-            </>
+            </MaisOpcoes>
           )}
 
           <div className="space-y-2">
