@@ -293,10 +293,13 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="gap-6 rounded-3xl p-10 sm:max-w-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[90vh] gap-6 overflow-y-auto rounded-3xl p-6 sm:max-w-2xl sm:p-10"
+      >
         <DialogClose
           type="button"
-          className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:right-6 sm:top-6"
         >
           <X className="h-4 w-4" />
         </DialogClose>
@@ -484,7 +487,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
             />
           </div>
 
-          <DialogFooter className="-mx-10 -mb-10 mt-2 rounded-b-3xl p-6">
+          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 mt-2 rounded-b-3xl bg-popover p-4 sm:-mx-10 sm:-mb-10 sm:p-6">
             <DialogClose render={<Button type="button" variant="outline" />}>
               Cancelar
             </DialogClose>
