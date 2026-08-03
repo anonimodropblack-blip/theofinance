@@ -1,13 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/ThemeProvider";
 import InstallPwaPrompt from "@/components/InstallPwaPrompt";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -29,10 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FAFAFC" },
-    { media: "(prefers-color-scheme: dark)", color: "#1E1F26" },
-  ],
+  themeColor: "#09090B",
   width: "device-width",
   initialScale: 1,
 };
@@ -45,16 +41,13 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`dark ${inter.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>
-          {children}
-          <InstallPwaPrompt />
-          <ServiceWorkerRegister />
-          <Toaster />
-        </ThemeProvider>
+        {children}
+        <InstallPwaPrompt />
+        <ServiceWorkerRegister />
+        <Toaster />
       </body>
     </html>
   );

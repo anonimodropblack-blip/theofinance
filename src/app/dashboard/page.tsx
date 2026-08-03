@@ -5,14 +5,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { calcularProjecao, calcularProjecaoTotal } from '@/lib/produtos-projecao'
@@ -484,15 +476,55 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Visão geral da operação agora</p>
+        </div>
         <Button type="button" variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
           <RefreshCw className={`h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
       </div>
 
+      {/* Hero — os 3 números que respondem "como a empresa está agora" */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <Receipt className="h-3.5 w-3.5" /> Faturamento Bruto
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={`text-3xl font-semibold tracking-tight ${COR_FATURAMENTO}`}>
+            {formatCurrency(kpis.faturamentoBruto)}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <TrendingUp className="h-3.5 w-3.5" /> Lucro Líquido Projetado
+            </CardTitle>
+          </CardHeader>
+          <CardContent className={`text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+            {formatCurrency(kpis.lucroProjetado)}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <Landmark className="h-3.5 w-3.5" /> Saldo Operacional
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-3xl font-semibold tracking-tight">
+            {formatCurrency(financeiroInfo?.saldo.operacional ?? 0)}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Grade secundária — o resto do contexto, mais discreto */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Card size="sm">
           <CardHeader>
@@ -516,24 +548,6 @@ export default function DashboardPage() {
             <div className="text-lg font-semibold">{kpis.estoqueUnidades} un.</div>
             <div className="text-xs text-muted-foreground">{formatCurrency(kpis.estoqueValor)} em custo</div>
           </CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <Receipt className="h-3.5 w-3.5" /> Faturamento Bruto
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`text-lg font-semibold ${COR_FATURAMENTO}`}>{formatCurrency(kpis.faturamentoBruto)}</CardContent>
-        </Card>
-
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <TrendingUp className="h-3.5 w-3.5" /> Lucro Líquido Projetado
-            </CardTitle>
-          </CardHeader>
-          <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>{formatCurrency(kpis.lucroProjetado)}</CardContent>
         </Card>
 
         <Card size="sm">
@@ -579,6 +593,15 @@ export default function DashboardPage() {
         <Card size="sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+              <PiggyBank className="h-3.5 w-3.5" /> Saldo Reserva/CDB
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo?.saldo.reserva ?? 0)}</CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
               <Receipt className="h-3.5 w-3.5" /> Custo Fixo Mensal
             </CardTitle>
           </CardHeader>
@@ -589,19 +612,11 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-          <Megaphone className="h-4 w-4" /> Ads
-        </h2>
-        {kpis.gastoAdsMensal <= 0 ? (
-          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-            Nenhum gasto com Ads definido ainda. Configure o Ads por produto em{' '}
-            <Link href="/dashboard/produtos" className="text-foreground underline underline-offset-2">Produtos</Link>{' '}
-            (ou um gasto mensal geral em{' '}
-            <Link href="/dashboard/configuracoes" className="text-foreground underline underline-offset-2">Configurações</Link>)
-            pra ver a estimativa de TACoS e ROAS aqui.
-          </div>
-        ) : (
+      {kpis.gastoAdsMensal > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <Megaphone className="h-4 w-4" /> Ads
+          </h2>
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
             <Card size="sm">
               <CardHeader>
@@ -636,10 +651,10 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="rounded-lg border border-border p-4 flex items-center justify-between gap-3 flex-wrap">
+      <Card size="sm" className="flex-row items-center justify-between gap-3 flex-wrap px-4">
         <div>
           <p className="text-sm font-medium capitalize">Fechamento de {nomeMesAtual}</p>
           <p className="text-xs text-muted-foreground">
@@ -652,13 +667,13 @@ export default function DashboardPage() {
           {fechando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarCheck className="h-3.5 w-3.5" />}
           {fechamentoAtual ? 'Re-fechar o mês' : 'Fechar o mês'}
         </Button>
-      </div>
+      </Card>
 
       {financeiroInfo && config && (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <HandCoins className="h-4 w-4" /> Pró-labore & Caixa
+              <HandCoins className="h-4 w-4" /> Pró-labore
             </h2>
             <Link href="/dashboard/financeiro" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
               Ver livro-caixa completo
@@ -666,13 +681,13 @@ export default function DashboardPage() {
           </div>
 
           {financeiroInfo.prolaboreCalculado < config.prolabore_piso && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 flex items-center gap-2 text-sm">
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500 shrink-0" />
+            <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 flex items-center gap-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
               O pró-labore sugerido esse mês ({formatCurrency(financeiroInfo.prolaboreCalculado)}) está abaixo do piso configurado ({formatCurrency(config.prolabore_piso)}).
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Card size="sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
@@ -695,41 +710,25 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
             </Card>
-
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <Landmark className="h-3.5 w-3.5" /> Saldo Operacional
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.saldo.operacional)}</CardContent>
-            </Card>
-
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                  <PiggyBank className="h-3.5 w-3.5" /> Saldo Reserva/CDB
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.saldo.reserva)}</CardContent>
-            </Card>
           </div>
 
           {financeiroInfo.alocacaoSugerida.length > 0 && (
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              <p className="text-sm font-medium">Pra onde vai o resto do lucro</p>
-              <div className="space-y-1.5">
-                {financeiroInfo.alocacaoSugerida.map(({ caixinha, valor }) => (
-                  <div key={caixinha.id} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{caixinha.nome} ({caixinha.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)</span>
-                    <span className="font-medium">{formatCurrency(valor)}</span>
-                  </div>
-                ))}
-              </div>
-              <Button type="button" size="sm" variant="secondary" disabled={aplicandoAlocacao} onClick={aplicarAlocacaoCaixinhas}>
-                {aplicandoAlocacao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Registrar essa divisão'}
-              </Button>
-            </div>
+            <Card size="sm" className="gap-3">
+              <CardContent className="space-y-3">
+                <p className="text-sm font-medium">Pra onde vai o resto do lucro</p>
+                <div className="space-y-1.5">
+                  {financeiroInfo.alocacaoSugerida.map(({ caixinha, valor }) => (
+                    <div key={caixinha.id} className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">{caixinha.nome} ({caixinha.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)</span>
+                      <span className="font-medium">{formatCurrency(valor)}</span>
+                    </div>
+                  ))}
+                </div>
+                <Button type="button" size="sm" variant="secondary" disabled={aplicandoAlocacao} onClick={aplicarAlocacaoCaixinhas}>
+                  {aplicandoAlocacao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Registrar essa divisão'}
+                </Button>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
@@ -738,34 +737,29 @@ export default function DashboardPage() {
         <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
           <Boxes className="h-4 w-4" /> Últimos Lotes
         </h2>
-        <div className="rounded-lg border border-border overflow-x-auto">
+        <Card className="py-1">
           {ultimosLotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <p className="text-sm">Nenhum lote cadastrado ainda.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead className="text-right">Qtd. Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ultimosLotes.map((l) => (
-                  <TableRow key={l.id}>
-                    <TableCell className="font-medium">{l.codigo}</TableCell>
-                    <TableCell className="text-muted-foreground">{l.fornecedor}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatData(l.data)}</TableCell>
-                    <TableCell className="text-right">{l.quantidade}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y divide-border">
+              {ultimosLotes.map((l) => (
+                <div key={l.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                    <Boxes className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{l.codigo}</p>
+                    <p className="truncate text-xs text-muted-foreground">{l.fornecedor}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">{formatData(l.data)}</span>
+                  <span className="w-16 shrink-0 text-right font-medium">{l.quantidade} un.</span>
+                </div>
+              ))}
+            </div>
           )}
-        </div>
+        </Card>
       </div>
 
       <div className="space-y-3">
@@ -783,51 +777,40 @@ export default function DashboardPage() {
             />
           </div>
         </div>
-        <div className="rounded-lg border border-border overflow-x-auto">
+
+        <div className="flex items-center gap-4 px-1 text-xs text-muted-foreground">
+          <button type="button" onClick={() => ordenarPor('margem')} className="inline-flex items-center gap-1 hover:text-foreground">
+            Margem % <ArrowUpDown className="h-3 w-3" />
+          </button>
+          <button type="button" onClick={() => ordenarPor('vendasMes')} className="inline-flex items-center gap-1 hover:text-foreground">
+            Vendas/Mês <ArrowUpDown className="h-3 w-3" />
+          </button>
+          <button type="button" onClick={() => ordenarPor('lucroMes')} className="inline-flex items-center gap-1 hover:text-foreground">
+            Lucro/Mês <ArrowUpDown className="h-3 w-3" />
+          </button>
+        </div>
+
+        <Card className="py-1">
           {relatorioProdutos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <p className="text-sm">{produtos.length === 0 ? 'Nenhum produto ativo cadastrado ainda.' : 'Nenhum produto encontrado.'}</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="text-right">
-                    <button type="button" onClick={() => ordenarPor('margem')} className="inline-flex items-center gap-1 hover:text-foreground">
-                      Margem % <ArrowUpDown className="h-3 w-3" />
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <button type="button" onClick={() => ordenarPor('vendasMes')} className="inline-flex items-center gap-1 hover:text-foreground">
-                      Vendas/Mês <ArrowUpDown className="h-3 w-3" />
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <button type="button" onClick={() => ordenarPor('lucroMes')} className="inline-flex items-center gap-1 hover:text-foreground">
-                      Lucro/Mês <ArrowUpDown className="h-3 w-3" />
-                    </button>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {relatorioProdutos.map(({ produto, margemPct, lucroMes, vendasQtd }) => {
-                  const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
-                  return (
-                    <TableRow key={produto.id}>
-                      <TableCell className="font-medium">{produto.nome}</TableCell>
-                      <TableCell className={`text-right font-medium ${corMargemProduto}`}>
-                        {formatPctNullable(margemPct)}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground">{vendasQtd || '—'}</TableCell>
-                      <TableCell className={`text-right ${corMargemProduto}`}>{formatCurrencyNullable(lucroMes)}</TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
+            <div className="divide-y divide-border">
+              {relatorioProdutos.map(({ produto, margemPct, lucroMes, vendasQtd }) => {
+                const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
+                return (
+                  <div key={produto.id} className="flex items-center gap-3 px-4 py-3 text-sm">
+                    <p className="min-w-0 flex-1 truncate font-medium">{produto.nome}</p>
+                    <span className="w-20 shrink-0 text-right text-muted-foreground">{vendasQtd || '—'} vendas</span>
+                    <span className={`w-20 shrink-0 text-right font-medium ${corMargemProduto}`}>{formatPctNullable(margemPct)}</span>
+                    <span className={`w-28 shrink-0 text-right font-semibold ${corMargemProduto}`}>{formatCurrencyNullable(lucroMes)}</span>
+                  </div>
+                )
+              })}
+            </div>
           )}
-        </div>
+        </Card>
       </div>
 
       <LancamentoDialog
