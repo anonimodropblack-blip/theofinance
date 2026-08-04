@@ -708,7 +708,14 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setNovoLocalNome(e.target.value)}
                 autoFocus
                 required
+                disabled={editandoLocal?.nome === 'Casa'}
               />
+              {editandoLocal?.nome === 'Casa' && (
+                <p className="text-xs text-muted-foreground">
+                  &ldquo;Casa&rdquo; é o local padrão do sistema — o nome não pode ser alterado
+                  porque o fluxo de Compras procura por esse nome exato pra dar entrada no estoque.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Tipo</Label>
@@ -1051,7 +1058,15 @@ export default function ConfiguracoesPage() {
                 onChange={(e) => setNomeCategoriaFinanceira(e.target.value)}
                 autoFocus
                 required
+                disabled={editandoCategoriaFinanceira?.padrao}
               />
+              {editandoCategoriaFinanceira?.padrao && (
+                <p className="text-xs text-muted-foreground">
+                  Categoria padrão do sistema — o nome não pode ser alterado porque algumas telas
+                  (Compras, Transferências, Caixinhas) procuram por esse nome exato pra categorizar
+                  lançamentos automáticos. Ícone e cor podem ser alterados normalmente.
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Ícone</Label>

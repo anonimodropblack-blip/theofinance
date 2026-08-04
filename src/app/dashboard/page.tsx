@@ -180,37 +180,21 @@ export default function DashboardPage() {
     return mapa
   }, [loteItens])
 
-  // custo atual por produto: lote mais recente que contém aquele produto (mesmo critério
-  // da Precificação) — extraído do cálculo de KPIs pra também alimentar o Lucro Real
-  // (calculado a partir dos pedidos reais lançados, não da projeção).
+  // custo atual por produto: média ponderada entre todas as compras (mesmo critério de
+  // custo-real.ts já usado em Precificação/Produtos/financeiroInfo) — extraído do cálculo
+  // de KPIs pra também alimentar o Lucro Real (calculado a partir dos pedidos reais
+  // lançados, não da projeção). Antes esse mapa reimplementava a lógica antiga de "só o
+  // lote mais recente", o que fazia o Dashboard mostrar números diferentes de
+  // Produtos/Precificação pra qualquer produto comprado em mais de um lote com preços
+  // diferentes -- corrigido pra usar a mesma função de uma vez só.
   const custoAtualPorProduto = useMemo(() => {
-    const custoLogisticaPorLote = new Map<string, number>()
-    for (const c of loteCustos) {
-      const totalLote = unidadesPorLote.get(c.lote_id) ?? 0
-      const porUnidade = c.modo === 'por_unidade' ? c.valor : (totalLote > 0 ? c.valor / totalLote : 0)
-      custoLogisticaPorLote.set(c.lote_id, (custoLogisticaPorLote.get(c.lote_id) ?? 0) + porUnidade)
-    }
-
-    const itensPorProduto = new Map<string, LoteItemComLote[]>()
-    for (const item of loteItens) {
-      const lista = itensPorProduto.get(item.produto_id) ?? []
-      lista.push(item)
-      itensPorProduto.set(item.produto_id, lista)
-    }
-
+    const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
     const mapa = new Map<string, number>()
-    for (const [produtoId, itens] of itensPorProduto) {
-      const maisRecente = [...itens].sort((a, b) => {
-        const porData = new Date(b.lote.data).getTime() - new Date(a.lote.data).getTime()
-        if (porData !== 0) return porData
-        return new Date(b.lote.created_at).getTime() - new Date(a.lote.created_at).getTime()
-      })[0]
-      const custoProduto = maisRecente.custo_unitario ?? 0
-      const custoLogistica = custoLogisticaPorLote.get(maisRecente.lote_id) ?? 0
-      mapa.set(produtoId, custoProduto + custoLogistica)
+    for (const [produtoId, c] of Object.entries(custoRealPorProduto)) {
+      mapa.set(produtoId, c.custoUnitario + c.custosLogistica.reduce((s, l) => s + l.valor, 0))
     }
     return mapa
-  }, [loteItens, loteCustos, unidadesPorLote])
+  }, [loteItens, loteCustos])
 
   const vendasReaisMes = useMemo(() => {
     const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim)

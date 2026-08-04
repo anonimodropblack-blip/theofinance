@@ -105,10 +105,13 @@ export default function NovoLotePage() {
       return
     }
 
-    const { data: casa } = await supabase.from('locais_estoque').select('id').eq('nome', 'Casa').single()
+    const { data: casa, error: erroCasa } = await supabase.from('locais_estoque').select('id').eq('nome', 'Casa').single()
 
-    if (casa) {
-      await supabase.from('movimentacoes').insert(
+    let estoqueAtualizado = false
+    if (erroCasa || !casa) {
+      toast.error('Lote foi criado, mas não achei o local "Casa" — estoque NÃO foi atualizado. Confira manualmente (alguém pode ter renomeado esse local em Configurações).')
+    } else {
+      const { error: erroMovimentacao } = await supabase.from('movimentacoes').insert(
         itens.map((i) => ({
           produto_id: i.produto.id,
           tipo: 'entrada_lote',
@@ -118,11 +121,13 @@ export default function NovoLotePage() {
           data,
         }))
       )
+      if (erroMovimentacao) toast.error('Lote foi criado, mas não deu pra registrar a movimentação de entrada. Confira o histórico manualmente.')
 
       try {
         for (const item of itens) {
           await ajustarEstoque(supabase, item.produto.id, casa.id, item.quantidade)
         }
+        estoqueAtualizado = true
       } catch {
         toast.error('Lote foi criado, mas não deu pra atualizar o estoque. Confira manualmente.')
         setSalvando(false)
@@ -132,7 +137,9 @@ export default function NovoLotePage() {
 
     if (freteNumero > 0) {
       const { data: categoriaFrete } = await supabase.from('categorias_custo').select('id').eq('nome', 'Frete').single()
-      if (categoriaFrete) {
+      if (!categoriaFrete) {
+        toast.error('Frete entrou no total da despesa, mas não achei a categoria "Frete" pra detalhar em "Custos do Lote". Confira manualmente.')
+      } else {
         const { error: erroFrete } = await supabase.from('lote_custos').insert({
           lote_id: lote.id,
           categoria_id: categoriaFrete.id,
@@ -144,6 +151,9 @@ export default function NovoLotePage() {
     }
 
     const { data: categoriaEstoque } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Estoque').single()
+    if (!categoriaEstoque) {
+      toast.error('Não achei a categoria financeira "Estoque" — a despesa vai ser lançada sem categoria. Confira em Configurações.')
+    }
 
     const { error: erroLancamento } = await supabase.from('lancamentos_financeiros').insert({
       tipo: 'saida',
@@ -157,9 +167,9 @@ export default function NovoLotePage() {
       lote_id: lote.id,
     })
     if (erroLancamento) {
-      toast.error('Lote e estoque foram atualizados, mas a despesa não foi lançada no financeiro. Confira manualmente.')
+      toast.error(`Lote foi criado${estoqueAtualizado ? ' e estoque foi atualizado' : ''}, mas a despesa não foi lançada no financeiro. Confira manualmente.`)
     } else {
-      toast.success(`${codigo} criado — estoque e despesa atualizados.`)
+      toast.success(`${codigo} criado — ${estoqueAtualizado ? 'estoque e despesa atualizados' : 'despesa lançada, mas confira o estoque'}.`)
     }
 
     router.push('/dashboard/lotes')
