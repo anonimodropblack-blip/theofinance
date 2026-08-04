@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck, Store, Factory, ChevronRight, PackageCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -434,6 +434,7 @@ export default function DashboardPage() {
 
   async function aplicarAlocacaoCaixinhas() {
     if (!financeiroInfo || financeiroInfo.alocacaoSugerida.length === 0) return
+    if (!window.confirm('Isso vai lançar essa divisão de verdade no Financeiro (uma saída pra cada caixinha). Confirmar?')) return
     const { data: categoriaCaixinha } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Caixinha').single()
     const linhas = financeiroInfo.alocacaoSugerida
       .filter((a) => a.valor > 0)
@@ -529,13 +530,20 @@ export default function DashboardPage() {
     })
   }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
 
-  const dadosCanal = useMemo(
-    () =>
-      [...relatorioCanais]
-        .sort((a, b) => b.faturamento - a.faturamento)
-        .map((c) => ({ nome: c.local.nome, faturamento: c.faturamento })),
-    [relatorioCanais]
-  )
+  // Faturamento real por canal (a partir dos pedidos lançados no período selecionado) --
+  // diferente de relatorioCanais acima, que é projeção (ritmo estimado) e alimenta o
+  // Fechar o Mês. Esse aqui é só pro gráfico "Faturamento por Canal" do Dashboard.
+  const dadosCanal = useMemo(() => {
+    const locaisPorId = new Map(locais.map((l) => [l.id, l]))
+    const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim)
+    const porCanal = new Map<string, number>()
+    for (const p of doPeriodo) {
+      porCanal.set(p.local_id, (porCanal.get(p.local_id) ?? 0) + p.quantidade * p.preco_unitario)
+    }
+    return [...porCanal.entries()]
+      .map(([localId, faturamento]) => ({ nome: locaisPorId.get(localId)?.nome ?? 'Desconhecido', faturamento }))
+      .sort((a, b) => b.faturamento - a.faturamento)
+  }, [pedidos, locais, periodoInicio, periodoFim])
 
   const nomeMesAtual = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
@@ -765,8 +773,9 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-              <KpiIcon icon={Store} tone="violet" /> Faturamento por Canal
+              <KpiIcon icon={Store} tone="violet" /> Faturamento Real por Canal
             </CardTitle>
+            <CardDescription className="text-xs">A partir dos pedidos lançados no período selecionado acima.</CardDescription>
           </CardHeader>
           <CardContent className="h-56">
             <ResponsiveContainer width="100%" height="100%">
