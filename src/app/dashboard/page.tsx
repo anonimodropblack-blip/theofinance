@@ -47,7 +47,7 @@ function formatRoas(v: number | null) {
 type OrdemColuna = 'margem' | 'vendasMes' | 'lucroMes'
 
 function formatData(iso: string) {
-  const [ano, mes, dia] = iso.split('-')
+  const [, mes, dia] = iso.split('-')
   return `${dia}/${mes}`
 }
 

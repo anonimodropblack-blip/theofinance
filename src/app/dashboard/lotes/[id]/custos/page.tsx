@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,6 @@ function formatCurrency(v: number) {
 
 export default function CustosLotePage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
   const [lote, setLote] = useState<Lote | null>(null)

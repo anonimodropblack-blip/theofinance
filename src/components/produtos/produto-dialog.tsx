@@ -38,7 +38,7 @@ type Props = {
 }
 
 export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, vendasCanalProduto, onSaved }: Props) {
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const [nome, setNome] = useState('')
   const [fabricante, setFabricante] = useState('')
   const [fabricantes, setFabricantes] = useState<Fabricante[]>([])
@@ -73,7 +73,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
       Object.fromEntries(locaisMarketplace.map((l) => [l.id, String(vendasCanalProduto[l.id] ?? '')]))
     )
     setPesoGramas(produto?.peso_gramas != null ? String(produto.peso_gramas) : '')
-  }, [open, produto, locaisMarketplace, vendasCanalProduto])
+  }, [open, produto, locaisMarketplace, vendasCanalProduto, supabase])
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()

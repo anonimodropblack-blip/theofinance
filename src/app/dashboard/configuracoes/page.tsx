@@ -680,7 +680,7 @@ export default function ConfiguracoesPage() {
         <CardHeader>
           <CardTitle>Tarifa de Logística FBA</CardTitle>
           <CardDescription>
-            Valor fixo em R$ por unidade, conforme peso do produto e faixa de preço de venda — tabela oficial da Amazon Brasil. Só é cobrada quando "Logística FBA" estiver marcado como "Cobrando" acima.
+            Valor fixo em R$ por unidade, conforme peso do produto e faixa de preço de venda — tabela oficial da Amazon Brasil. Só é cobrada quando &ldquo;Logística FBA&rdquo; estiver marcado como &ldquo;Cobrando&rdquo; acima.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

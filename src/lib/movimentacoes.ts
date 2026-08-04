@@ -13,7 +13,7 @@ export const TIPO_LABEL: Record<string, string> = {
 }
 
 export function formatData(iso: string) {
-  const [ano, mes, dia] = iso.split('-')
+  const [, mes, dia] = iso.split('-')
   return `${dia}/${mes}`
 }
 

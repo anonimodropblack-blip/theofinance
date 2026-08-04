@@ -21,7 +21,7 @@ import type { Lote } from '@/types'
 type LoteComTotal = Lote & { totalUnidades: number }
 
 function formatData(iso: string) {
-  const [ano, mes, dia] = iso.split('-')
+  const [, mes, dia] = iso.split('-')
   return `${dia}/${mes}`
 }
 
