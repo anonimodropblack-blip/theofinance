@@ -24,12 +24,14 @@ import {
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { MaisOpcoes } from '@/components/ui/mais-opcoes'
-import type { Caixinha, LancamentoFinanceiro } from '@/types'
+import { CategoriaPicker } from '@/components/financeiro/categoria-picker'
+import type { Caixinha, CategoriaFinanceira, LancamentoFinanceiro } from '@/types'
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   caixinhas: Caixinha[]
+  categorias: CategoriaFinanceira[]
   onSaved: () => void
   lancamento?: LancamentoFinanceiro | null
   valorInicial?: number
@@ -40,13 +42,13 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lancamento = null, valorInicial, retiradaInicial = false }: Props) {
+export function LancamentoDialog({ open, onOpenChange, caixinhas, categorias, onSaved, lancamento = null, valorInicial, retiradaInicial = false }: Props) {
   const [supabase] = useState(() => createClient())
   const [tipo, setTipo] = useState<'entrada' | 'saida'>('saida')
   const [conta, setConta] = useState<'operacional' | 'reserva'>('operacional')
   const [retirada, setRetirada] = useState(false)
   const [caixinhaId, setCaixinhaId] = useState('')
-  const [categoria, setCategoria] = useState('')
+  const [categoriaId, setCategoriaId] = useState('')
   const [valor, setValor] = useState('')
   const [data, setData] = useState(hojeISO())
   const [descricao, setDescricao] = useState('')
@@ -59,7 +61,7 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
       setConta(lancamento.conta)
       setRetirada(lancamento.retirada)
       setCaixinhaId(lancamento.caixinha_id ?? '')
-      setCategoria(lancamento.categoria ?? '')
+      setCategoriaId(lancamento.categoria_id ?? '')
       setValor(String(lancamento.valor))
       setData(lancamento.data)
       setDescricao(lancamento.descricao ?? '')
@@ -68,12 +70,12 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
       setConta('operacional')
       setRetirada(retiradaInicial)
       setCaixinhaId('')
-      setCategoria(retiradaInicial ? 'Retirada' : '')
+      setCategoriaId(retiradaInicial ? (categorias.find((c) => c.nome === 'Retirada')?.id ?? '') : '')
       setValor(valorInicial != null ? String(valorInicial) : '')
       setData(hojeISO())
       setDescricao('')
     }
-  }, [open, lancamento, valorInicial, retiradaInicial])
+  }, [open, lancamento, valorInicial, retiradaInicial, categorias])
 
   async function salvar() {
     const valorNumero = Number(valor.replace(',', '.'))
@@ -86,7 +88,7 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
       conta,
       retirada: tipo === 'saida' ? retirada : false,
       caixinha_id: tipo === 'saida' && caixinhaId ? caixinhaId : null,
-      categoria: categoria.trim() || null,
+      categoria_id: categoriaId || null,
       valor: valorNumero,
       data,
       descricao: descricao.trim() || null,
@@ -147,7 +149,7 @@ export function LancamentoDialog({ open, onOpenChange, caixinhas, onSaved, lanca
 
           <div className="space-y-2">
             <Label>Categoria (opcional)</Label>
-            <Input placeholder="ex: Venda Shopee, conta de luz..." value={categoria} onChange={(e) => setCategoria(e.target.value)} />
+            <CategoriaPicker categorias={categorias} value={categoriaId} onSelect={(c) => setCategoriaId(c.id)} />
           </div>
 
           <MaisOpcoes defaultOpen={temOpcoesPreenchidas}>

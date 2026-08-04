@@ -19,7 +19,7 @@ import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoMes } from '@/lib
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { toast } from 'sonner'
-import type { Caixinha, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
+import type { Caixinha, CategoriaFinanceira, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
+  const [categoriasFinanceiras, setCategoriasFinanceiras] = useState<CategoriaFinanceira[]>([])
   const [lancamentos, setLancamentos] = useState<LancamentoFinanceiro[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
@@ -90,6 +91,7 @@ export default function DashboardPage() {
       { data: fxsFba },
       { data: fxsPreco },
       { data: cxs },
+      { data: catsFin },
       { data: lancs },
       { data: peds },
       { data: vendasCanalData },
@@ -105,6 +107,7 @@ export default function DashboardPage() {
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('caixinhas').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('categorias_financeiras').select('*').order('nome'),
       supabase.from('lancamentos_financeiros').select('*'),
       supabase.from('pedidos').select('*'),
       supabase.from('vendas_mes_canal').select('*'),
@@ -126,6 +129,7 @@ export default function DashboardPage() {
       })
     )
     setCaixinhas((cxs ?? []) as Caixinha[])
+    setCategoriasFinanceiras((catsFin ?? []) as CategoriaFinanceira[])
     setLancamentos((lancs ?? []) as LancamentoFinanceiro[])
     setPedidos((peds ?? []) as Pedido[])
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
@@ -406,12 +410,14 @@ export default function DashboardPage() {
 
   async function aplicarAlocacaoCaixinhas() {
     if (!financeiroInfo || financeiroInfo.alocacaoSugerida.length === 0) return
+    const { data: categoriaCaixinha } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Caixinha').single()
     const linhas = financeiroInfo.alocacaoSugerida
       .filter((a) => a.valor > 0)
       .map((a) => ({
         tipo: 'saida' as const,
         conta: a.caixinha.conta_destino,
-        categoria: a.caixinha.nome,
+        categoria_id: categoriaCaixinha?.id ?? null,
+        descricao: a.caixinha.nome,
         caixinha_id: a.caixinha.id,
         valor: a.valor,
         data: new Date().toISOString().slice(0, 10),
@@ -1111,6 +1117,7 @@ export default function DashboardPage() {
         open={retiradaDialogOpen}
         onOpenChange={setRetiradaDialogOpen}
         caixinhas={caixinhas}
+        categorias={categoriasFinanceiras}
         valorInicial={financeiroInfo?.prolaboreCalculado}
         retiradaInicial
         onSaved={carregar}

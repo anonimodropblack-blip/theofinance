@@ -54,9 +54,13 @@ export function TransferenciaDialog({ open, onOpenChange, onSaved }: Props) {
     const [origem, destino] = direcao.split('->') as ['operacional' | 'reserva', 'operacional' | 'reserva']
     const hoje = new Date().toISOString().slice(0, 10)
     setSalvando(true)
+
+    const { data: categoriaTransferencia } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Transferência').single()
+    const categoria_id = categoriaTransferencia?.id ?? null
+
     const { error } = await supabase.from('lancamentos_financeiros').insert([
-      { tipo: 'saida', conta: origem, valor: valorNumero, data: hoje, categoria: `Transferência para ${destino === 'reserva' ? 'Reserva/CDB' : 'Operacional'}` },
-      { tipo: 'entrada', conta: destino, valor: valorNumero, data: hoje, categoria: `Transferência de ${origem === 'reserva' ? 'Reserva/CDB' : 'Operacional'}` },
+      { tipo: 'saida', conta: origem, valor: valorNumero, data: hoje, categoria_id, descricao: `Transferência para ${destino === 'reserva' ? 'Reserva/CDB' : 'Operacional'}` },
+      { tipo: 'entrada', conta: destino, valor: valorNumero, data: hoje, categoria_id, descricao: `Transferência de ${origem === 'reserva' ? 'Reserva/CDB' : 'Operacional'}` },
     ])
     setSalvando(false)
     if (error) {

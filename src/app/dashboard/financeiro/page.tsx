@@ -10,12 +10,13 @@ import { LancamentoItem } from '@/components/financeiro/lancamento-item'
 import { TransferenciaDialog } from '@/components/financeiro/transferencia-dialog'
 import { formatCurrency, saldoPorConta, type LancamentoComCaixinha } from '@/lib/financeiro'
 import { toast } from 'sonner'
-import type { Caixinha, LancamentoFinanceiro } from '@/types'
+import type { Caixinha, CategoriaFinanceira, LancamentoFinanceiro } from '@/types'
 
 export default function FinanceiroPage() {
   const supabase = useMemo(() => createClient(), [])
   const [lancamentos, setLancamentos] = useState<LancamentoComCaixinha[]>([])
   const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
+  const [categorias, setCategorias] = useState<CategoriaFinanceira[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [transferenciaOpen, setTransferenciaOpen] = useState(false)
@@ -23,16 +24,18 @@ export default function FinanceiroPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: lancs }, { data: cxs }] = await Promise.all([
+    const [{ data: lancs }, { data: cxs }, { data: cats }] = await Promise.all([
       supabase
         .from('lancamentos_financeiros')
-        .select('*, caixinha:caixinha_id(nome)')
+        .select('*, caixinha:caixinha_id(nome), categoria_financeira:categoria_id(*)')
         .order('data', { ascending: false })
         .order('created_at', { ascending: false }),
       supabase.from('caixinhas').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('categorias_financeiras').select('*').order('nome'),
     ])
     setLancamentos((lancs ?? []) as unknown as LancamentoComCaixinha[])
     setCaixinhas((cxs ?? []) as Caixinha[])
+    setCategorias((cats ?? []) as CategoriaFinanceira[])
     setLoading(false)
   }, [supabase])
 
@@ -119,6 +122,7 @@ export default function FinanceiroPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         caixinhas={caixinhas}
+        categorias={categorias}
         lancamento={editando}
         onSaved={carregar}
       />

@@ -1,6 +1,9 @@
-import type { Caixinha, LancamentoFinanceiro } from '@/types'
+import type { Caixinha, CategoriaFinanceira, LancamentoFinanceiro } from '@/types'
 
-export type LancamentoComCaixinha = LancamentoFinanceiro & { caixinha: Pick<Caixinha, 'nome'> | null }
+export type LancamentoComCaixinha = LancamentoFinanceiro & {
+  caixinha: Pick<Caixinha, 'nome'> | null
+  categoria_financeira: CategoriaFinanceira | null
+}
 
 // Saldo é sempre derivado da soma dos lançamentos — nunca armazenado, mesmo padrão
 // usado pro estoque (somado a partir de `movimentacoes`).

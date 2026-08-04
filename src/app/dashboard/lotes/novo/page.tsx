@@ -143,12 +143,14 @@ export default function NovoLotePage() {
       }
     }
 
+    const { data: categoriaEstoque } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Estoque').single()
+
     const { error: erroLancamento } = await supabase.from('lancamentos_financeiros').insert({
       tipo: 'saida',
       conta: 'operacional',
       retirada: false,
       caixinha_id: null,
-      categoria: 'Estoque',
+      categoria_id: categoriaEstoque?.id ?? null,
       valor: totalCompra,
       data,
       descricao: `${codigo} — ${fornecedor.trim()}`,

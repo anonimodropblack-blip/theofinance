@@ -31,8 +31,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
-import type { Caixinha, CategoriaCusto, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { KpiIcon, TONES, TONE_SWATCH, type Tone } from '@/components/dashboard/KpiIcon'
+import { NOMES_ICONES_CATEGORIA, iconeCategoria } from '@/lib/categorias-financeiras'
+import type { Caixinha, CategoriaCusto, CategoriaFinanceira, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -42,6 +44,7 @@ export default function ConfiguracoesPage() {
   const [config, setConfig] = useState<Configuracao | null>(null)
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [categorias, setCategorias] = useState<CategoriaCusto[]>([])
+  const [categoriasFinanceiras, setCategoriasFinanceiras] = useState<CategoriaFinanceira[]>([])
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
@@ -61,12 +64,20 @@ export default function ConfiguracoesPage() {
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
   const [salvandoCategoria, setSalvandoCategoria] = useState(false)
 
+  const [categoriaFinanceiraDialogOpen, setCategoriaFinanceiraDialogOpen] = useState(false)
+  const [editandoCategoriaFinanceira, setEditandoCategoriaFinanceira] = useState<CategoriaFinanceira | null>(null)
+  const [nomeCategoriaFinanceira, setNomeCategoriaFinanceira] = useState('')
+  const [iconeCategoriaFinanceira, setIconeCategoriaFinanceira] = useState<string>(NOMES_ICONES_CATEGORIA[0])
+  const [corCategoriaFinanceira, setCorCategoriaFinanceira] = useState<Tone>('neutral')
+  const [salvandoCategoriaFinanceira, setSalvandoCategoriaFinanceira] = useState(false)
+
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }, { data: fxsFba }, { data: fxsPreco }, { data: cxs }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: catsFin }, { data: fxsFba }, { data: fxsPreco }, { data: cxs }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
+      supabase.from('categorias_financeiras').select('*').order('created_at'),
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('caixinhas').select('*').order('ordem'),
@@ -84,6 +95,7 @@ export default function ConfiguracoesPage() {
     setEstoqueCoberturaDias(cfg ? String(cfg.estoque_cobertura_dias) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
+    setCategoriasFinanceiras((catsFin ?? []) as CategoriaFinanceira[])
     setFaixasFba(
       ((fxsFba ?? []) as FaixaLogisticaFba[]).sort((a, b) => {
         if (a.peso_min !== b.peso_min) return a.peso_min - b.peso_min
@@ -287,6 +299,50 @@ export default function ConfiguracoesPage() {
     toast.success('Categoria criada')
     setNovaCategoriaNome('')
     setNovaCategoriaOpen(false)
+    carregar()
+  }
+
+  async function toggleAtivoCategoriaFinanceira(categoria: CategoriaFinanceira) {
+    const { error } = await supabase.from('categorias_financeiras').update({ ativo: !categoria.ativo }).eq('id', categoria.id)
+    if (error) {
+      toast.error('Erro ao atualizar categoria.')
+      return
+    }
+    setCategoriasFinanceiras((prev) => prev.map((c) => (c.id === categoria.id ? { ...c, ativo: !c.ativo } : c)))
+  }
+
+  function abrirNovaCategoriaFinanceira() {
+    setEditandoCategoriaFinanceira(null)
+    setNomeCategoriaFinanceira('')
+    setIconeCategoriaFinanceira(NOMES_ICONES_CATEGORIA[0])
+    setCorCategoriaFinanceira('neutral')
+    setCategoriaFinanceiraDialogOpen(true)
+  }
+
+  function abrirEdicaoCategoriaFinanceira(categoria: CategoriaFinanceira) {
+    setEditandoCategoriaFinanceira(categoria)
+    setNomeCategoriaFinanceira(categoria.nome)
+    setIconeCategoriaFinanceira(categoria.icone)
+    setCorCategoriaFinanceira((categoria.cor in TONES ? categoria.cor : 'neutral') as Tone)
+    setCategoriaFinanceiraDialogOpen(true)
+  }
+
+  async function salvarCategoriaFinanceira(e: React.FormEvent) {
+    e.preventDefault()
+    const nome = nomeCategoriaFinanceira.trim()
+    if (!nome) return
+    setSalvandoCategoriaFinanceira(true)
+    const payload = { nome, icone: iconeCategoriaFinanceira, cor: corCategoriaFinanceira }
+    const { error } = editandoCategoriaFinanceira
+      ? await supabase.from('categorias_financeiras').update(payload).eq('id', editandoCategoriaFinanceira.id)
+      : await supabase.from('categorias_financeiras').insert({ ...payload, ativo: true, padrao: false })
+    setSalvandoCategoriaFinanceira(false)
+    if (error) {
+      toast.error('Erro ao salvar categoria.')
+      return
+    }
+    toast.success(editandoCategoriaFinanceira ? 'Categoria atualizada' : 'Categoria criada')
+    setCategoriaFinanceiraDialogOpen(false)
     carregar()
   }
 
@@ -720,6 +776,112 @@ export default function ConfiguracoesPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Categorias Financeiras</CardTitle>
+          <CardDescription>Usadas nos lançamentos do Financeiro. Desativar não apaga histórico.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="overflow-x-auto"><Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead />
+                <TableHead>Nome</TableHead>
+                <TableHead>Origem</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {categoriasFinanceiras.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell><KpiIcon icon={iconeCategoria(c.icone)} tone={(c.cor in TONES ? c.cor : 'neutral') as Tone} /></TableCell>
+                  <TableCell className="font-medium">{c.nome}</TableCell>
+                  <TableCell className="text-muted-foreground">{c.padrao ? 'Padrão' : 'Personalizada'}</TableCell>
+                  <TableCell>
+                    <button type="button" onClick={() => toggleAtivoCategoriaFinanceira(c)}>
+                      <Badge variant={c.ativo ? 'default' : 'secondary'}>{c.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEdicaoCategoriaFinanceira(c)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table></div>
+          <Button type="button" variant="outline" size="sm" onClick={abrirNovaCategoriaFinanceira}>
+            <Plus className="h-4 w-4" />
+            Nova categoria
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={categoriaFinanceiraDialogOpen} onOpenChange={setCategoriaFinanceiraDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editandoCategoriaFinanceira ? 'Editar categoria' : 'Nova categoria financeira'}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={salvarCategoriaFinanceira} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nome_categoria_financeira">Nome</Label>
+              <Input
+                id="nome_categoria_financeira"
+                value={nomeCategoriaFinanceira}
+                onChange={(e) => setNomeCategoriaFinanceira(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Ícone</Label>
+              <div className="grid grid-cols-8 gap-2">
+                {NOMES_ICONES_CATEGORIA.map((nomeIcone) => {
+                  const Icon = iconeCategoria(nomeIcone)
+                  const selecionado = iconeCategoriaFinanceira === nomeIcone
+                  return (
+                    <button
+                      key={nomeIcone}
+                      type="button"
+                      onClick={() => setIconeCategoriaFinanceira(nomeIcone)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${selecionado ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Cor</Label>
+              <div className="flex gap-2">
+                {(Object.keys(TONES) as Tone[]).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setCorCategoriaFinanceira(t)}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors ${corCategoriaFinanceira === t ? 'border-foreground' : 'border-transparent'}`}
+                  >
+                    <span className={`h-5 w-5 rounded-full ${TONE_SWATCH[t]}`} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-border p-3">
+              <KpiIcon icon={iconeCategoria(iconeCategoriaFinanceira)} tone={corCategoriaFinanceira} />
+              <span className="text-sm text-muted-foreground">Pré-visualização</span>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={salvandoCategoriaFinanceira}>
+                {salvandoCategoriaFinanceira ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={novaCategoriaOpen} onOpenChange={setNovaCategoriaOpen}>
         <DialogContent>

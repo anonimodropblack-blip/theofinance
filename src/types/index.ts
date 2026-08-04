@@ -93,6 +93,16 @@ export interface CategoriaCusto {
   created_at: string
 }
 
+export interface CategoriaFinanceira {
+  id: string
+  nome: string
+  icone: string
+  cor: string
+  ativo: boolean
+  padrao: boolean
+  created_at: string
+}
+
 export interface LoteCusto {
   id: string
   lote_id: string
@@ -136,6 +146,7 @@ export interface LancamentoFinanceiro {
   retirada: boolean
   caixinha_id: string | null
   categoria: string | null
+  categoria_id: string | null
   valor: number
   descricao: string | null
   lote_id: string | null

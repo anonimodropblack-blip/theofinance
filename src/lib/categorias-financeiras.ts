@@ -1,0 +1,62 @@
+import {
+  ArrowDownToLine,
+  ArrowLeftRight,
+  Building2,
+  Coffee,
+  CreditCard,
+  Fuel,
+  Gift,
+  Home,
+  Landmark,
+  Megaphone,
+  MoreHorizontal,
+  Package,
+  PiggyBank,
+  Receipt,
+  ShoppingCart,
+  Smartphone,
+  Tag,
+  TrendingDown,
+  TrendingUp,
+  Truck,
+  Users,
+  Wallet,
+  Wifi,
+  Wrench,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
+
+export const ICONES_CATEGORIA: Record<string, LucideIcon> = {
+  Package,
+  Truck,
+  Megaphone,
+  Wallet,
+  Zap,
+  Landmark,
+  Receipt,
+  ArrowLeftRight,
+  ArrowDownToLine,
+  ShoppingCart,
+  CreditCard,
+  PiggyBank,
+  Home,
+  Wifi,
+  Smartphone,
+  Users,
+  Wrench,
+  Gift,
+  Fuel,
+  Coffee,
+  Tag,
+  TrendingUp,
+  TrendingDown,
+  Building2,
+  MoreHorizontal,
+}
+
+export const NOMES_ICONES_CATEGORIA = Object.keys(ICONES_CATEGORIA)
+
+export function iconeCategoria(nome: string): LucideIcon {
+  return ICONES_CATEGORIA[nome] ?? Tag
+}
