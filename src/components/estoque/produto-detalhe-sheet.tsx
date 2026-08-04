@@ -90,7 +90,7 @@ export function ProdutoDetalheSheet({ produto, open, onOpenChange, locais, produ
                   </div>
                 ) : (
                   movimentacoes.map((m) => (
-                    <MovimentacaoItem key={m.id} movimentacao={m} mostrarProduto={false} />
+                    <MovimentacaoItem key={m.id} movimentacao={m} mostrarProduto={false} onAtualizado={carregarHistorico} />
                   ))
                 )}
               </div>

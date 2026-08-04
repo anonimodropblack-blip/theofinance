@@ -57,7 +57,7 @@ export default function MovimentacoesPage() {
             <p className="text-sm">Nenhuma movimentação registrada ainda.</p>
           </div>
         ) : (
-          movimentacoes.map((m) => <MovimentacaoItem key={m.id} movimentacao={m} />)
+          movimentacoes.map((m) => <MovimentacaoItem key={m.id} movimentacao={m} onAtualizado={carregar} />)
         )}
       </div>
 

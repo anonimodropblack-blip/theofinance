@@ -223,6 +223,8 @@ export interface Movimentacao {
   codigo_referencia: string | null
   motorista: string | null
   custo_frete: number | null
+  qtd_confirmada: number | null
+  motivo_diferenca: string | null
   data: string
   created_at: string
 }
