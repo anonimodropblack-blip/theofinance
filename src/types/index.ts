@@ -50,11 +50,13 @@ export interface LocalEstoque {
 
 export interface FaixaLogisticaFba {
   id: string
+  local_id: string
   peso_min: number
   peso_max: number | null
   preco_min: number
   preco_max: number | null
   valor_fixo: number
+  ativo: boolean
   created_at: string
 }
 
@@ -65,6 +67,7 @@ export interface FaixaTaxaMarketplacePreco {
   preco_max: number | null
   taxa_percentual: number
   valor_fixo: number
+  ativo: boolean
   created_at: string
 }
 

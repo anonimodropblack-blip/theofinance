@@ -61,9 +61,11 @@ export default function ConfiguracoesPage() {
   const [estoqueCoberturaDias, setEstoqueCoberturaDias] = useState('')
 
   const [novoLocalOpen, setNovoLocalOpen] = useState(false)
+  const [editandoLocal, setEditandoLocal] = useState<LocalEstoque | null>(null)
   const [novoLocalNome, setNovoLocalNome] = useState('')
   const [novoLocalTipo, setNovoLocalTipo] = useState<'marketplace' | 'proprio'>('marketplace')
   const [novoLocalTaxa, setNovoLocalTaxa] = useState('')
+  const [novoLocalModelo, setNovoLocalModelo] = useState<'simples' | 'faixa_preco' | 'faixa_peso'>('simples')
   const [salvandoLocal, setSalvandoLocal] = useState(false)
 
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
@@ -165,27 +167,51 @@ export default function ConfiguracoesPage() {
     setLocais((prev) => prev.map((l) => (l.id === local.id ? { ...l, fba_logistica_ativa: !l.fba_logistica_ativa } : l)))
   }
 
-  async function criarLocal(e: React.FormEvent) {
+  function abrirNovoLocal() {
+    setEditandoLocal(null)
+    setNovoLocalNome('')
+    setNovoLocalTaxa('')
+    setNovoLocalTipo('marketplace')
+    setNovoLocalModelo('simples')
+    setNovoLocalOpen(true)
+  }
+
+  function abrirEdicaoLocal(local: LocalEstoque) {
+    setEditandoLocal(local)
+    setNovoLocalNome(local.nome)
+    setNovoLocalTaxa(local.taxa_marketplace != null ? String(local.taxa_marketplace) : '')
+    setNovoLocalTipo(local.tipo)
+    setNovoLocalModelo(local.usa_taxa_por_faixa ? 'faixa_preco' : local.usa_tarifa_fba ? 'faixa_peso' : 'simples')
+    setNovoLocalOpen(true)
+  }
+
+  async function salvarLocal(e: React.FormEvent) {
     e.preventDefault()
     const nome = novoLocalNome.trim()
     if (!nome) return
     setSalvandoLocal(true)
-    const { error } = await supabase.from('locais_estoque').insert({
+    const taxaNumero = Number(novoLocalTaxa.replace(',', '.')) || 0
+    const payload = {
       nome,
       tipo: novoLocalTipo,
-      taxa_marketplace: novoLocalTipo === 'marketplace' ? Number(novoLocalTaxa.replace(',', '.')) || 0 : null,
-      ativo: true,
-      ordem: locais.length,
-    })
+      taxa_marketplace: novoLocalTipo === 'marketplace' ? taxaNumero : null,
+      usa_taxa_por_faixa: novoLocalTipo === 'marketplace' && novoLocalModelo === 'faixa_preco',
+      usa_tarifa_fba: novoLocalTipo === 'marketplace' && novoLocalModelo === 'faixa_peso',
+    }
+    const { error } = editandoLocal
+      ? await supabase.from('locais_estoque').update(payload).eq('id', editandoLocal.id)
+      : await supabase.from('locais_estoque').insert({
+          ...payload,
+          ativo: true,
+          fba_logistica_ativa: novoLocalModelo === 'faixa_peso',
+          ordem: locais.length,
+        })
     setSalvandoLocal(false)
     if (error) {
-      toast.error('Erro ao criar local.')
+      toast.error('Erro ao salvar local.')
       return
     }
-    toast.success('Local criado')
-    setNovoLocalNome('')
-    setNovoLocalTaxa('')
-    setNovoLocalTipo('marketplace')
+    toast.success(editandoLocal ? 'Local atualizado' : 'Local criado')
     setNovoLocalOpen(false)
     carregar()
   }
@@ -202,8 +228,8 @@ export default function ConfiguracoesPage() {
     carregar()
   }
 
-  async function criarFaixaFba() {
-    const { error } = await supabase.from('faixas_logistica_fba').insert({ peso_min: 0, peso_max: null, preco_min: 0, preco_max: null, valor_fixo: 0 })
+  async function criarFaixaFba(localId: string) {
+    const { error } = await supabase.from('faixas_logistica_fba').insert({ local_id: localId, peso_min: 0, peso_max: null, preco_min: 0, preco_max: null, valor_fixo: 0 })
     if (error) {
       toast.error('Erro ao criar faixa.')
       return
@@ -218,6 +244,24 @@ export default function ConfiguracoesPage() {
       return
     }
     setFaixasFba((prev) => prev.filter((f) => f.id !== faixa.id))
+  }
+
+  async function toggleAtivoFaixaFba(faixa: FaixaLogisticaFba) {
+    const { error } = await supabase.from('faixas_logistica_fba').update({ ativo: !faixa.ativo }).eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao atualizar faixa.')
+      return
+    }
+    setFaixasFba((prev) => prev.map((f) => (f.id === faixa.id ? { ...f, ativo: !f.ativo } : f)))
+  }
+
+  async function toggleAtivoFaixaPreco(faixa: FaixaTaxaMarketplacePreco) {
+    const { error } = await supabase.from('faixas_taxa_marketplace_preco').update({ ativo: !faixa.ativo }).eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao atualizar faixa.')
+      return
+    }
+    setFaixasPreco((prev) => prev.map((f) => (f.id === faixa.id ? { ...f, ativo: !f.ativo } : f)))
   }
 
   async function atualizarFaixaPreco(faixa: FaixaTaxaMarketplacePreco, campo: 'preco_min' | 'preco_max' | 'taxa_percentual' | 'valor_fixo', valorTexto: string) {
@@ -573,7 +617,8 @@ export default function ConfiguracoesPage() {
                 <TableHead>Tipo</TableHead>
                 <TableHead className="text-right">{locais.some((l) => l.usa_tarifa_fba) ? 'Comissão (%)' : 'Taxa (%)'}</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Logística FBA</TableHead>
+                <TableHead>Logística por Peso</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -611,11 +656,16 @@ export default function ConfiguracoesPage() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEdicaoLocal(l)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table></div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setNovoLocalOpen(true)}>
+          <Button type="button" variant="outline" size="sm" onClick={abrirNovoLocal}>
             <Plus className="h-4 w-4" />
             Novo local
           </Button>
@@ -625,9 +675,9 @@ export default function ConfiguracoesPage() {
       <Dialog open={novoLocalOpen} onOpenChange={setNovoLocalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Novo local / marketplace</DialogTitle>
+            <DialogTitle>{editandoLocal ? 'Editar local / marketplace' : 'Novo local / marketplace'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={criarLocal} className="space-y-4">
+          <form onSubmit={salvarLocal} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="novo_local_nome">Nome</Label>
               <Input
@@ -657,13 +707,43 @@ export default function ConfiguracoesPage() {
             </div>
             {novoLocalTipo === 'marketplace' && (
               <div className="space-y-2">
-                <Label htmlFor="novo_local_taxa">Taxa/comissão (%)</Label>
+                <Label>Modelo de taxa</Label>
+                <Select
+                  value={novoLocalModelo}
+                  onValueChange={(v) => setNovoLocalModelo((v ?? 'simples') as 'simples' | 'faixa_preco' | 'faixa_peso')}
+                  items={{
+                    simples: 'Taxa simples (%)',
+                    faixa_preco: 'Comissão por faixa de preço',
+                    faixa_peso: 'Comissão + logística por peso (estilo Amazon)',
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="simples">Taxa simples (%)</SelectItem>
+                    <SelectItem value="faixa_preco">Comissão por faixa de preço</SelectItem>
+                    <SelectItem value="faixa_peso">Comissão + logística por peso (estilo Amazon)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {novoLocalModelo !== 'simples' && (
+                  <p className="text-xs text-muted-foreground">
+                    As faixas em si (valores por preço{novoLocalModelo === 'faixa_peso' ? '/peso' : ''}) se cadastram
+                    depois de salvar, nos cards abaixo.
+                  </p>
+                )}
+              </div>
+            )}
+            {novoLocalTipo === 'marketplace' && (
+              <div className="space-y-2">
+                <Label htmlFor="novo_local_taxa">{novoLocalModelo === 'faixa_peso' ? 'Comissão base (%)' : 'Taxa/comissão (%)'}</Label>
                 <Input
                   id="novo_local_taxa"
                   inputMode="decimal"
                   placeholder="0,00"
                   value={novoLocalTaxa}
                   onChange={(e) => setNovoLocalTaxa(e.target.value)}
+                  disabled={novoLocalModelo === 'faixa_preco'}
                 />
               </div>
             )}
@@ -678,81 +758,97 @@ export default function ConfiguracoesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Tarifa de Logística FBA</CardTitle>
+          <CardTitle>Tarifa de Logística por Peso</CardTitle>
           <CardDescription>
-            Valor fixo em R$ por unidade, conforme peso do produto e faixa de preço de venda — tabela oficial da Amazon Brasil. Só é cobrada quando &ldquo;Logística FBA&rdquo; estiver marcado como &ldquo;Cobrando&rdquo; acima.
+            Valor fixo em R$ por unidade, conforme peso do produto e faixa de preço de venda — modelo usado pela Amazon FBA, disponível pra qualquer local cadastrado como &ldquo;Comissão + logística por peso&rdquo;. Só é cobrada quando &ldquo;Logística por Peso&rdquo; estiver marcada como &ldquo;Cobrando&rdquo; na tabela de locais acima.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto"><Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-right">Peso de (g)</TableHead>
-                <TableHead className="text-right">Peso até (g)</TableHead>
-                <TableHead className="text-right">Preço de</TableHead>
-                <TableHead className="text-right">Preço até</TableHead>
-                <TableHead className="text-right">Valor (R$)</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {faixasFba.map((f) => (
-                <TableRow key={f.id}>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={String(f.peso_min)}
-                      inputMode="numeric"
-                      className="w-20 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixaFba(f, 'peso_min', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={f.peso_max == null ? '' : String(f.peso_max)}
-                      placeholder="Sem limite"
-                      inputMode="numeric"
-                      className="w-24 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixaFba(f, 'peso_max', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={String(f.preco_min)}
-                      inputMode="decimal"
-                      className="w-20 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixaFba(f, 'preco_min', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={f.preco_max == null ? '' : String(f.preco_max)}
-                      placeholder="Sem limite"
-                      inputMode="decimal"
-                      className="w-24 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixaFba(f, 'preco_max', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Input
-                      defaultValue={String(f.valor_fixo)}
-                      inputMode="decimal"
-                      className="w-20 ml-auto text-right"
-                      onBlur={(e) => atualizarFaixaFba(f, 'valor_fixo', e.target.value)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixaFba(f)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table></div>
-          <Button type="button" variant="outline" size="sm" onClick={criarFaixaFba}>
-            <Plus className="h-4 w-4" />
-            Nova faixa
-          </Button>
+        <CardContent className="space-y-6">
+          {locais.filter((l) => l.usa_tarifa_fba).map((l) => (
+            <div key={l.id} className="space-y-2">
+              <p className="text-sm font-semibold">{l.nome}</p>
+              <div className="overflow-x-auto"><Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-right">Peso de (g)</TableHead>
+                    <TableHead className="text-right">Peso até (g)</TableHead>
+                    <TableHead className="text-right">Preço de</TableHead>
+                    <TableHead className="text-right">Preço até</TableHead>
+                    <TableHead className="text-right">Valor (R$)</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {faixasFba.filter((f) => f.local_id === l.id).map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.peso_min)}
+                          inputMode="numeric"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaFba(f, 'peso_min', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={f.peso_max == null ? '' : String(f.peso_max)}
+                          placeholder="Sem limite"
+                          inputMode="numeric"
+                          className="w-24 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaFba(f, 'peso_max', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.preco_min)}
+                          inputMode="decimal"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaFba(f, 'preco_min', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={f.preco_max == null ? '' : String(f.preco_max)}
+                          placeholder="Sem limite"
+                          inputMode="decimal"
+                          className="w-24 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaFba(f, 'preco_max', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          defaultValue={String(f.valor_fixo)}
+                          inputMode="decimal"
+                          className="w-20 ml-auto text-right"
+                          onBlur={(e) => atualizarFaixaFba(f, 'valor_fixo', e.target.value)}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <button type="button" onClick={() => toggleAtivoFaixaFba(f)}>
+                          <Badge variant={f.ativo ? 'default' : 'secondary'}>{f.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixaFba(f)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table></div>
+              <Button type="button" variant="outline" size="sm" onClick={() => criarFaixaFba(l.id)}>
+                <Plus className="h-4 w-4" />
+                Nova faixa
+              </Button>
+            </div>
+          ))}
+          {locais.filter((l) => l.usa_tarifa_fba).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhum local usa esse modelo ainda. Cadastre ou edite um marketplace acima com &ldquo;Comissão + logística por peso&rdquo;.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -774,6 +870,7 @@ export default function ConfiguracoesPage() {
                     <TableHead className="text-right">Preço até</TableHead>
                     <TableHead className="text-right">Comissão (%)</TableHead>
                     <TableHead className="text-right">Valor Fixo (R$)</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -814,6 +911,11 @@ export default function ConfiguracoesPage() {
                         />
                       </TableCell>
                       <TableCell>
+                        <button type="button" onClick={() => toggleAtivoFaixaPreco(f)}>
+                          <Badge variant={f.ativo ? 'default' : 'secondary'}>{f.ativo ? 'Ativa' : 'Inativa'}</Badge>
+                        </button>
+                      </TableCell>
+                      <TableCell>
                         <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => excluirFaixaPreco(f)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -828,6 +930,11 @@ export default function ConfiguracoesPage() {
               </Button>
             </div>
           ))}
+          {locais.filter((l) => l.usa_taxa_por_faixa).length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Nenhum local usa esse modelo ainda. Cadastre ou edite um marketplace acima com &ldquo;Comissão por faixa de preço&rdquo;.
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -43,7 +43,7 @@ export function calcularPrecificacao(params: {
 
   const usaTaxaPorFaixa = local?.usa_taxa_por_faixa ?? false
   const faixaPreco = usaTaxaPorFaixa && precoVenda > 0
-    ? obterTaxaPorFaixa(precoVenda, faixasPreco.filter((f) => f.local_id === local?.id))
+    ? obterTaxaPorFaixa(precoVenda, faixasPreco.filter((f) => f.local_id === local?.id && f.ativo))
     : null
   const semFaixaPreco = usaTaxaPorFaixa && precoVenda > 0 && faixaPreco == null
   const valorFixoFaixa = faixaPreco?.valorFixo ?? 0
@@ -56,7 +56,7 @@ export function calcularPrecificacao(params: {
   const usaTarifaFba = (local?.usa_tarifa_fba && local?.fba_logistica_ativa) ?? false
   const pesoFaltando = usaTarifaFba && pesoGramas == null
   const tarifaFba = usaTarifaFba && pesoGramas != null && precoVenda > 0
-    ? obterTarifaFba(pesoGramas, precoVenda, faixasFba)
+    ? obterTarifaFba(pesoGramas, precoVenda, faixasFba.filter((f) => f.local_id === local?.id && f.ativo))
     : null
   const valorTarifaFba = tarifaFba ?? 0
 
