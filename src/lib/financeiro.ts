@@ -15,9 +15,9 @@ export function saldoPorConta(lancamentos: LancamentoFinanceiro[]) {
   return saldo
 }
 
-export function totalRetiradoNoMes(lancamentos: LancamentoFinanceiro[], primeiroDiaMesISO: string): number {
+export function totalRetiradoNoPeriodo(lancamentos: LancamentoFinanceiro[], inicioISO: string, fimISO: string): number {
   return lancamentos
-    .filter((l) => l.retirada && l.tipo === 'saida' && l.data >= primeiroDiaMesISO)
+    .filter((l) => l.retirada && l.tipo === 'saida' && l.data >= inicioISO && l.data <= fimISO)
     .reduce((s, l) => s + l.valor, 0)
 }
 

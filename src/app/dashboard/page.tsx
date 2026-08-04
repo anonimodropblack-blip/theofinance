@@ -15,7 +15,7 @@ import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import { calcularAlocacaoCaixinhas, calcularProlabore } from '@/lib/prolabore'
-import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoMes } from '@/lib/financeiro'
+import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoPeriodo } from '@/lib/financeiro'
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { toast } from 'sonner'
@@ -51,10 +51,35 @@ function formatData(iso: string) {
   return `${dia}/${mes}`
 }
 
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function primeiroDiaMesPassadoISO() {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+function ultimoDiaMesPassadoISO() {
+  const d = new Date()
+  d.setDate(0)
+  return d.toISOString().slice(0, 10)
+}
+
+function ha30DiasISO() {
+  const d = new Date()
+  d.setDate(d.getDate() - 30)
+  return d.toISOString().slice(0, 10)
+}
+
 export default function DashboardPage() {
   const supabase = useMemo(() => createClient(), [])
   const [loading, setLoading] = useState(true)
   const [atualizando, setAtualizando] = useState(false)
+  const [periodoInicio, setPeriodoInicio] = useState(primeiroDiaMesAtualISO())
+  const [periodoFim, setPeriodoFim] = useState(hojeISO())
 
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [locais, setLocais] = useState<LocalEstoque[]>([])
@@ -188,12 +213,11 @@ export default function DashboardPage() {
   }, [loteItens, loteCustos, unidadesPorLote])
 
   const vendasReaisMes = useMemo(() => {
-    const mesAtual = primeiroDiaMesAtualISO().slice(0, 7)
-    const doMes = pedidos.filter((p) => p.data.slice(0, 7) === mesAtual)
-    const faturamentoReal = doMes.reduce((s, p) => s + p.quantidade * p.preco_unitario, 0)
-    const custoReal = doMes.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
+    const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim)
+    const faturamentoReal = doPeriodo.reduce((s, p) => s + p.quantidade * p.preco_unitario, 0)
+    const custoReal = doPeriodo.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
     return { faturamentoReal, custoReal, lucroReal: faturamentoReal - custoReal }
-  }, [pedidos, custoAtualPorProduto])
+  }, [pedidos, custoAtualPorProduto, periodoInicio, periodoFim])
 
   const operacao = useMemo(() => {
     const estoquePorProduto = new Map<string, number>()
@@ -401,12 +425,12 @@ export default function DashboardPage() {
 
     const lucroBaseProlabore = config.prolabore_descontar_custo_fixo ? lucroLiquidoMensal - (config.custo_fixo_mensal ?? 0) : lucroLiquidoMensal
     const prolaboreCalculado = calcularProlabore(lucroBaseProlabore, config.prolabore_alvo, config.prolabore_pct_excedente)
-    const retiradoNoMes = totalRetiradoNoMes(lancamentos, primeiroDiaMesAtualISO())
+    const retiradoNoPeriodo = totalRetiradoNoPeriodo(lancamentos, periodoInicio, periodoFim)
     const saldo = saldoPorConta(lancamentos)
     const alocacaoSugerida = calcularAlocacaoCaixinhas(lucroBaseProlabore - prolaboreCalculado, caixinhas)
 
-    return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, retiradoNoMes, saldo, alocacaoSugerida }
-  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal])
+    return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, retiradoNoPeriodo, saldo, alocacaoSugerida }
+  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim])
 
   async function aplicarAlocacaoCaixinhas() {
     if (!financeiroInfo || financeiroInfo.alocacaoSugerida.length === 0) return
@@ -588,15 +612,43 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">Visão geral da operação agora</p>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
-          <RefreshCw className={`h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border border-border p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => { setPeriodoInicio(primeiroDiaMesAtualISO()); setPeriodoFim(hojeISO()) }}
+              className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Este mês
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPeriodoInicio(primeiroDiaMesPassadoISO()); setPeriodoFim(ultimoDiaMesPassadoISO()) }}
+              className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Mês passado
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPeriodoInicio(ha30DiasISO()); setPeriodoFim(hojeISO()) }}
+              className="rounded px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Últimos 30 dias
+            </button>
+          </div>
+          <Input type="date" className="h-8 w-[9.5rem]" value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} />
+          <span className="text-xs text-muted-foreground">até</span>
+          <Input type="date" className="h-8 w-[9.5rem]" value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} />
+          <Button type="button" variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
+            <RefreshCw className={`h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* Resumo da Operação — os números que respondem "como a empresa está agora" */}
@@ -675,10 +727,11 @@ export default function DashboardPage() {
       <div className="space-y-3">
         <div>
           <h2 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-            <ShoppingCart className="h-4 w-4" /> Vendas Reais do Mês
+            <ShoppingCart className="h-4 w-4" /> Vendas Reais no Período
+            <span className="font-normal text-xs text-muted-foreground">({formatData(periodoInicio)} – {formatData(periodoFim)})</span>
           </h2>
           <p className="text-xs text-muted-foreground">
-            A partir dos pedidos lançados — diferente da projeção acima, que usa o preço cadastrado do produto.
+            A partir dos pedidos lançados nesse período — diferente da projeção acima, que usa o ritmo atual de vendas.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -996,10 +1049,10 @@ export default function DashboardPage() {
               <Card size="sm" className="transition-colors hover:border-primary/30">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                    <KpiIcon icon={Wallet} tone="blue" /> Já Retirado no Mês
+                    <KpiIcon icon={Wallet} tone="blue" /> Retirado no Período
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoMes)}</CardContent>
+                <CardContent className="text-lg font-semibold">{formatCurrency(financeiroInfo.retiradoNoPeriodo)}</CardContent>
               </Card>
             </Link>
           </div>

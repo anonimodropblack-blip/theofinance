@@ -44,6 +44,10 @@ type ItemLoteParaMover = {
   incluir: boolean
 }
 
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, onSaved, produtoInicial = null }: Props) {
   const [supabase] = useState(() => createClient())
   const [tipo, setTipo] = useState<'envio' | 'ajuste'>('envio')
@@ -57,6 +61,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
   const [destinoId, setDestinoId] = useState('')
   const [localId, setLocalId] = useState('')
   const [quantidade, setQuantidade] = useState('')
+  const [data, setData] = useState(hojeISO())
   const [observacao, setObservacao] = useState('')
   const [quantidadeCaixas, setQuantidadeCaixas] = useState('')
   const [codigoReferencia, setCodigoReferencia] = useState('')
@@ -75,6 +80,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
     setDestinoId('')
     setLocalId('')
     setQuantidade('')
+    setData(hojeISO())
     setObservacao('')
     setQuantidadeCaixas('')
     setCodigoReferencia('')
@@ -142,6 +148,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         origem_local_id: origemId,
         destino_local_id: destinoId,
         lote_id: loteId,
+        data,
         observacao: observacao.trim() || null,
         quantidade_caixas: quantidadeCaixas ? Number(quantidadeCaixas) : null,
         codigo_referencia: codigoReferencia.trim() || null,
@@ -194,6 +201,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         quantidade: -qtd,
         origem_local_id: origemId,
         destino_local_id: destinoId,
+        data,
         observacao: observacao.trim() || null,
         quantidade_caixas: quantidadeCaixas ? Number(quantidadeCaixas) : null,
         codigo_referencia: codigoReferencia.trim() || null,
@@ -215,6 +223,7 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
         tipo: 'ajuste',
         quantidade: qtd,
         origem_local_id: localId,
+        data,
         observacao: observacao.trim() || null,
       })
       if (error) { toast.error('Erro ao salvar movimentação.'); setSalvando(false); return }
@@ -256,6 +265,11 @@ export function NovaMovimentacaoDialog({ open, onOpenChange, produtos, locais, o
                 <SelectItem value="ajuste">Ajuste manual</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Data</Label>
+            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
           </div>
 
           {tipo === 'envio' && (
