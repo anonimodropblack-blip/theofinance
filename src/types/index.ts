@@ -138,6 +138,7 @@ export interface LancamentoFinanceiro {
   categoria: string | null
   valor: number
   descricao: string | null
+  lote_id: string | null
   created_at: string
 }
 

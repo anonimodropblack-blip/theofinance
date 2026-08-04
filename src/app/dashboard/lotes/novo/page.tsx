@@ -152,6 +152,7 @@ export default function NovoLotePage() {
       valor: totalCompra,
       data,
       descricao: `${codigo} — ${fornecedor.trim()}`,
+      lote_id: lote.id,
     })
     if (erroLancamento) {
       toast.error('Lote e estoque foram atualizados, mas a despesa não foi lançada no financeiro. Confira manualmente.')
