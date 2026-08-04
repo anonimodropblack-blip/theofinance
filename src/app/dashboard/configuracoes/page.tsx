@@ -191,19 +191,27 @@ export default function ConfiguracoesPage() {
     if (!nome) return
     setSalvandoLocal(true)
     const taxaNumero = Number(novoLocalTaxa.replace(',', '.')) || 0
+    const virandoFaixaPeso = novoLocalModelo === 'faixa_peso'
+    // Se já era faixa_peso antes de editar, preserva a escolha de "Cobrando"/"Grátis" que
+    // o usuário já tinha feito na tabela; se está virando faixa_peso agora (local novo ou
+    // trocando de modelo), liga cobrando por padrão -- senão o preço calcularia sem
+    // nenhuma tarifa de logística até o usuário notar e ligar manualmente.
+    const fbaLogisticaAtiva = virandoFaixaPeso
+      ? (editandoLocal?.usa_tarifa_fba ? editandoLocal.fba_logistica_ativa : true)
+      : false
     const payload = {
       nome,
       tipo: novoLocalTipo,
       taxa_marketplace: novoLocalTipo === 'marketplace' ? taxaNumero : null,
       usa_taxa_por_faixa: novoLocalTipo === 'marketplace' && novoLocalModelo === 'faixa_preco',
-      usa_tarifa_fba: novoLocalTipo === 'marketplace' && novoLocalModelo === 'faixa_peso',
+      usa_tarifa_fba: novoLocalTipo === 'marketplace' && virandoFaixaPeso,
+      fba_logistica_ativa: fbaLogisticaAtiva,
     }
     const { error } = editandoLocal
       ? await supabase.from('locais_estoque').update(payload).eq('id', editandoLocal.id)
       : await supabase.from('locais_estoque').insert({
           ...payload,
           ativo: true,
-          fba_logistica_ativa: novoLocalModelo === 'faixa_peso',
           ordem: locais.length,
         })
     setSalvandoLocal(false)
@@ -355,6 +363,11 @@ export default function ConfiguracoesPage() {
     const { data: estoqueLocal } = await supabase.from('estoque').select('quantidade').eq('local_id', local.id)
     if ((estoqueLocal ?? []).some((e) => e.quantidade > 0)) {
       toast.error('Esse local tem estoque. Zere o estoque ou desative em vez de excluir.')
+      return
+    }
+    const { data: vendasLocal } = await supabase.from('vendas_mes_canal').select('quantidade').eq('local_id', local.id)
+    if ((vendasLocal ?? []).some((v) => v.quantidade > 0)) {
+      toast.error('Esse local tem Vendas/Mês preenchidas em algum produto (Produtos > editar). Excluir apagaria esses números. Zere ou desative em vez de excluir.')
       return
     }
     if (!window.confirm(`Excluir "${local.nome}"? Essa ação não pode ser desfeita.`)) return

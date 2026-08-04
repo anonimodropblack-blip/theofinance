@@ -107,7 +107,11 @@ export default function PrecificacaoPage() {
   const precoVenda = produto?.preco_venda ?? 0
   const custoFixoTotal = (custoReal?.custoUnitario ?? 0) + (custoReal?.custosLogistica.reduce((s, c) => s + c.valor, 0) ?? 0)
 
-  const totalVendasMes = vendasCanalRows.reduce((s, v) => s + v.quantidade, 0)
+  // produtos já vem filtrado por status 'ativo' (linha 51) -- soma só vendas de produtos
+  // ativos, mesmo critério do Dashboard/Produtos, senão o Ads diluído por unidade diverge
+  // entre as telas quando sobra vendas_mes_canal de produto que foi inativado.
+  const produtosAtivosIds = useMemo(() => new Set(produtos.map((p) => p.id)), [produtos])
+  const totalVendasMes = vendasCanalRows.reduce((s, v) => s + (produtosAtivosIds.has(v.produto_id) ? v.quantidade : 0), 0)
   const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
   const usandoAdsDiluido = produto?.ads_modo == null && adsDiluidoPorUnidade > 0
   const adsModoEfetivo = produto?.ads_modo ?? (usandoAdsDiluido ? 'valor' : null)

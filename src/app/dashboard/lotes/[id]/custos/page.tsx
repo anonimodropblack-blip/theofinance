@@ -122,17 +122,20 @@ export default function CustosLotePage() {
     const delta = novaQtd - item.quantidade
     const { error } = await supabase.from('lote_itens').update({ quantidade: novaQtd }).eq('id', item.id)
     if (error) { toast.error('Erro ao salvar quantidade.'); return }
-    if (casaLocalId) {
-      await supabase.from('movimentacoes').insert({
-        produto_id: item.produto_id, tipo: 'ajuste', quantidade: delta,
-        origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Correção de quantidade do lote',
-      })
-      try {
-        await ajustarEstoque(supabase, item.produto_id, casaLocalId, delta)
-      } catch {
-        toast.error('Quantidade do lote foi salva, mas não deu pra atualizar o estoque. Confira manualmente.')
-        return
-      }
+    if (!casaLocalId) {
+      toast.error('Quantidade do lote foi salva, mas não achei o local "Casa" — estoque NÃO foi ajustado. Confira manualmente.')
+      carregar()
+      return
+    }
+    await supabase.from('movimentacoes').insert({
+      produto_id: item.produto_id, tipo: 'ajuste', quantidade: delta,
+      origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Correção de quantidade do lote',
+    })
+    try {
+      await ajustarEstoque(supabase, item.produto_id, casaLocalId, delta)
+    } catch {
+      toast.error('Quantidade do lote foi salva, mas não deu pra atualizar o estoque. Confira manualmente.')
+      return
     }
     toast.success('Quantidade atualizada')
     carregar()
@@ -151,17 +154,20 @@ export default function CustosLotePage() {
     if (!window.confirm(`Remover "${item.produto?.nome}" deste lote?`)) return
     const { error } = await supabase.from('lote_itens').delete().eq('id', item.id)
     if (error) { toast.error('Erro ao remover produto.'); return }
-    if (casaLocalId) {
-      await supabase.from('movimentacoes').insert({
-        produto_id: item.produto_id, tipo: 'ajuste', quantidade: -item.quantidade,
-        origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Remoção de produto do lote',
-      })
-      try {
-        await ajustarEstoque(supabase, item.produto_id, casaLocalId, -item.quantidade)
-      } catch {
-        toast.error('Produto removido do lote, mas não deu pra atualizar o estoque. Confira manualmente.')
-        return
-      }
+    if (!casaLocalId) {
+      toast.error('Produto removido do lote, mas não achei o local "Casa" — estoque NÃO foi ajustado. Confira manualmente.')
+      carregar()
+      return
+    }
+    await supabase.from('movimentacoes').insert({
+      produto_id: item.produto_id, tipo: 'ajuste', quantidade: -item.quantidade,
+      origem_local_id: casaLocalId, lote_id: params.id, observacao: 'Remoção de produto do lote',
+    })
+    try {
+      await ajustarEstoque(supabase, item.produto_id, casaLocalId, -item.quantidade)
+    } catch {
+      toast.error('Produto removido do lote, mas não deu pra atualizar o estoque. Confira manualmente.')
+      return
     }
     toast.success('Produto removido do lote')
     carregar()
@@ -181,18 +187,25 @@ export default function CustosLotePage() {
     })
     if (error) { toast.error('Erro ao adicionar produto.'); setSalvandoItem(false); return }
 
-    if (casaLocalId) {
-      await supabase.from('movimentacoes').insert({
-        produto_id: novoProduto.id, tipo: 'entrada_lote', quantidade,
-        destino_local_id: casaLocalId, lote_id: params.id, data: lote?.data,
-      })
-      try {
-        await ajustarEstoque(supabase, novoProduto.id, casaLocalId, quantidade)
-      } catch {
-        toast.error('Produto adicionado ao lote, mas não deu pra atualizar o estoque. Confira manualmente.')
-        setSalvandoItem(false)
-        return
-      }
+    if (!casaLocalId) {
+      toast.error('Produto adicionado ao lote, mas não achei o local "Casa" — estoque NÃO foi ajustado. Confira manualmente.')
+      setSalvandoItem(false)
+      setNovoProduto(null)
+      setNovaQuantidade('')
+      setNovoCustoUnitario('')
+      carregar()
+      return
+    }
+    await supabase.from('movimentacoes').insert({
+      produto_id: novoProduto.id, tipo: 'entrada_lote', quantidade,
+      destino_local_id: casaLocalId, lote_id: params.id, data: lote?.data,
+    })
+    try {
+      await ajustarEstoque(supabase, novoProduto.id, casaLocalId, quantidade)
+    } catch {
+      toast.error('Produto adicionado ao lote, mas não deu pra atualizar o estoque. Confira manualmente.')
+      setSalvandoItem(false)
+      return
     }
 
     setSalvandoItem(false)

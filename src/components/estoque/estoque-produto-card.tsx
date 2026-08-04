@@ -51,7 +51,10 @@ export function EstoqueProdutoCard({ produto, total, saldoPorLocal, locais, stat
             <p className="text-xs text-muted-foreground truncate">{produto.sku || 'sem SKU'}</p>
           </div>
         </div>
-        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}>
+        <span
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.className}`}
+          title={status === 'sem_dados' ? 'Sem histórico de mês fechado pra esse produto ainda — feche o mês em Histórico pra começar a ver cobertura/status aqui.' : undefined}
+        >
           <StatusIcon className="h-3 w-3" />
           {statusInfo.label}
         </span>
