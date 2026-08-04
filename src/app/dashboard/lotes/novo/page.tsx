@@ -34,6 +34,7 @@ export default function NovoLotePage() {
   const [quantidade, setQuantidade] = useState('')
   const [custoUnitario, setCustoUnitario] = useState('')
   const [itens, setItens] = useState<ItemLote[]>([])
+  const [frete, setFrete] = useState('')
   const [salvando, setSalvando] = useState(false)
 
   useEffect(() => {
@@ -65,6 +66,9 @@ export default function NovoLotePage() {
   }
 
   const totalUnidades = itens.reduce((soma, i) => soma + i.quantidade, 0)
+  const totalItens = itens.reduce((soma, i) => soma + i.quantidade * i.custoUnitario, 0)
+  const freteNumero = frete ? Number(frete.replace(',', '.')) : 0
+  const totalCompra = totalItens + freteNumero
 
   async function salvar() {
     if (!fornecedor.trim()) { toast.error('Informe o fornecedor.'); return }
@@ -126,8 +130,36 @@ export default function NovoLotePage() {
       }
     }
 
-    toast.success(`${codigo} criado com sucesso`)
-    router.push(`/dashboard/lotes/${lote.id}/custos`)
+    if (freteNumero > 0) {
+      const { data: categoriaFrete } = await supabase.from('categorias_custo').select('id').eq('nome', 'Frete').single()
+      if (categoriaFrete) {
+        const { error: erroFrete } = await supabase.from('lote_custos').insert({
+          lote_id: lote.id,
+          categoria_id: categoriaFrete.id,
+          modo: 'total',
+          valor: freteNumero,
+        })
+        if (erroFrete) toast.error('Lote foi criado, mas não deu pra registrar o frete. Confira em "Custos do Lote".')
+      }
+    }
+
+    const { error: erroLancamento } = await supabase.from('lancamentos_financeiros').insert({
+      tipo: 'saida',
+      conta: 'operacional',
+      retirada: false,
+      caixinha_id: null,
+      categoria: 'Estoque',
+      valor: totalCompra,
+      data,
+      descricao: `${codigo} — ${fornecedor.trim()}`,
+    })
+    if (erroLancamento) {
+      toast.error('Lote e estoque foram atualizados, mas a despesa não foi lançada no financeiro. Confira manualmente.')
+    } else {
+      toast.success(`${codigo} criado — estoque e despesa atualizados.`)
+    }
+
+    router.push('/dashboard/lotes')
   }
 
   return (
@@ -214,11 +246,29 @@ export default function NovoLotePage() {
             ))}
             <div className="flex items-center justify-between pt-2 border-t border-border font-medium">
               <span>Total</span>
-              <span>{totalUnidades} unidades</span>
+              <span>{totalUnidades} unidades · {formatCurrency(totalItens)}</span>
             </div>
           </div>
         )}
       </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="frete">Frete (R$)</Label>
+          <Input id="frete" inputMode="decimal" placeholder="0,00" value={frete} onChange={(e) => setFrete(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Total investido</Label>
+          <div className="h-8 flex items-center px-3 rounded-md border border-border bg-muted text-sm font-medium">
+            {formatCurrency(totalCompra)}
+          </div>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        Ao salvar, o estoque é atualizado e essa despesa é lançada automaticamente no financeiro.
+        Custos detalhados por categoria (embalagem, prep center etc) continuam disponíveis em
+        &quot;Custos do Lote&quot;, depois de salvar.
+      </p>
     </div>
   )
 }

@@ -650,7 +650,7 @@ export default function ProdutosPage() {
                 <TableHead className="whitespace-nowrap">Unidade</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Peso (g)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Preço/Und.</TableHead>
-                <TableHead className="text-right whitespace-nowrap">Custo Real (Lote)</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Custo Real (Médio)</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Estoque</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Média/Dia</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Dias de Estoque</TableHead>
@@ -726,7 +726,7 @@ export default function ProdutosPage() {
                   <TableCell className="text-right whitespace-nowrap">
                     {custoReal ? (
                       <span
-                        title={custoReal.custosLogistica.length > 0 ? `Compra: ${formatCurrency(custoReal.custoUnitario)}\n${custoReal.custosLogistica.map((c) => `${c.nome}: ${formatCurrency(c.valor)}`).join('\n')}` : `Compra: ${formatCurrency(custoReal.custoUnitario)}`}
+                        title={custoReal.custosLogistica.length > 0 ? `Custo médio: ${formatCurrency(custoReal.custoUnitario)}\n${custoReal.custosLogistica.map((c) => `${c.nome}: ${formatCurrency(c.valor)}`).join('\n')}` : `Custo médio: ${formatCurrency(custoReal.custoUnitario)}`}
                       >
                         {formatCurrency(custoReal.custoUnitario + custoReal.custosLogistica.reduce((s, c) => s + c.valor, 0))}
                       </span>
