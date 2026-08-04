@@ -55,7 +55,7 @@ export function TransferenciaDialog({ open, onOpenChange, onSaved }: Props) {
     const hoje = new Date().toISOString().slice(0, 10)
     setSalvando(true)
 
-    const { data: categoriaTransferencia } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Transferência').single()
+    const { data: categoriaTransferencia } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Transferencia').single()
     const categoria_id = categoriaTransferencia?.id ?? null
 
     const { error } = await supabase.from('lancamentos_financeiros').insert([
