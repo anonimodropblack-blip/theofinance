@@ -351,6 +351,22 @@ export default function ConfiguracoesPage() {
     setLocais((prev) => prev.map((l) => (l.id === local.id ? { ...l, ativo: !l.ativo } : l)))
   }
 
+  async function excluirLocal(local: LocalEstoque) {
+    const { data: estoqueLocal } = await supabase.from('estoque').select('quantidade').eq('local_id', local.id)
+    if ((estoqueLocal ?? []).some((e) => e.quantidade > 0)) {
+      toast.error('Esse local tem estoque. Zere o estoque ou desative em vez de excluir.')
+      return
+    }
+    if (!window.confirm(`Excluir "${local.nome}"? Essa ação não pode ser desfeita.`)) return
+    const { error } = await supabase.from('locais_estoque').delete().eq('id', local.id)
+    if (error) {
+      toast.error('Não deu pra excluir — esse local já tem movimentações, pedidos ou fechamentos vinculados. Desative em vez de excluir.')
+      return
+    }
+    toast.success('Local excluído')
+    carregar()
+  }
+
   async function toggleAtivoCategoria(categoria: CategoriaCusto) {
     const { error } = await supabase.from('categorias_custo').update({ ativo: !categoria.ativo }).eq('id', categoria.id)
     if (error) {
@@ -657,9 +673,14 @@ export default function ConfiguracoesPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEdicaoLocal(l)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => abrirEdicaoLocal(l)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => excluirLocal(l)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
