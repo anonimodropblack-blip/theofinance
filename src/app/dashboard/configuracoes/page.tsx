@@ -60,6 +60,12 @@ export default function ConfiguracoesPage() {
   const [prazoReposicaoDias, setPrazoReposicaoDias] = useState('')
   const [estoqueCoberturaDias, setEstoqueCoberturaDias] = useState('')
 
+  const [novoLocalOpen, setNovoLocalOpen] = useState(false)
+  const [novoLocalNome, setNovoLocalNome] = useState('')
+  const [novoLocalTipo, setNovoLocalTipo] = useState<'marketplace' | 'proprio'>('marketplace')
+  const [novoLocalTaxa, setNovoLocalTaxa] = useState('')
+  const [salvandoLocal, setSalvandoLocal] = useState(false)
+
   const [novaCategoriaOpen, setNovaCategoriaOpen] = useState(false)
   const [novaCategoriaNome, setNovaCategoriaNome] = useState('')
   const [salvandoCategoria, setSalvandoCategoria] = useState(false)
@@ -157,6 +163,31 @@ export default function ConfiguracoesPage() {
       return
     }
     setLocais((prev) => prev.map((l) => (l.id === local.id ? { ...l, fba_logistica_ativa: !l.fba_logistica_ativa } : l)))
+  }
+
+  async function criarLocal(e: React.FormEvent) {
+    e.preventDefault()
+    const nome = novoLocalNome.trim()
+    if (!nome) return
+    setSalvandoLocal(true)
+    const { error } = await supabase.from('locais_estoque').insert({
+      nome,
+      tipo: novoLocalTipo,
+      taxa_marketplace: novoLocalTipo === 'marketplace' ? Number(novoLocalTaxa.replace(',', '.')) || 0 : null,
+      ativo: true,
+      ordem: locais.length,
+    })
+    setSalvandoLocal(false)
+    if (error) {
+      toast.error('Erro ao criar local.')
+      return
+    }
+    toast.success('Local criado')
+    setNovoLocalNome('')
+    setNovoLocalTaxa('')
+    setNovoLocalTipo('marketplace')
+    setNovoLocalOpen(false)
+    carregar()
   }
 
   async function atualizarFaixaFba(faixa: FaixaLogisticaFba, campo: 'peso_min' | 'peso_max' | 'preco_min' | 'preco_max' | 'valor_fixo', valorTexto: string) {
@@ -584,8 +615,66 @@ export default function ConfiguracoesPage() {
               ))}
             </TableBody>
           </Table></div>
+          <Button type="button" variant="outline" size="sm" onClick={() => setNovoLocalOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Novo local
+          </Button>
         </CardContent>
       </Card>
+
+      <Dialog open={novoLocalOpen} onOpenChange={setNovoLocalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo local / marketplace</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={criarLocal} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="novo_local_nome">Nome</Label>
+              <Input
+                id="novo_local_nome"
+                placeholder="ex: Mercado Livre, Shopee, Loja Própria..."
+                value={novoLocalNome}
+                onChange={(e) => setNovoLocalNome(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select
+                value={novoLocalTipo}
+                onValueChange={(v) => setNovoLocalTipo((v ?? 'marketplace') as 'marketplace' | 'proprio')}
+                items={{ marketplace: 'Marketplace (cobra taxa/comissão)', proprio: 'Próprio (loja própria, casa, depósito)' }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="marketplace">Marketplace (cobra taxa/comissão)</SelectItem>
+                  <SelectItem value="proprio">Próprio (loja própria, casa, depósito)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {novoLocalTipo === 'marketplace' && (
+              <div className="space-y-2">
+                <Label htmlFor="novo_local_taxa">Taxa/comissão (%)</Label>
+                <Input
+                  id="novo_local_taxa"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={novoLocalTaxa}
+                  onChange={(e) => setNovoLocalTaxa(e.target.value)}
+                />
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="submit" disabled={salvandoLocal}>
+                {salvandoLocal ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
