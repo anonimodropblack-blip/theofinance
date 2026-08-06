@@ -1,13 +1,14 @@
-import type { Caixinha } from '@/types'
+import type { Caixinha, ProlaboreFaixa } from '@/types'
 
-// Regra de pró-labore: até o alvo, recebe o lucro cheio (garante o padrão de vida
-// combinado); acima do alvo, trava no alvo + uma % pequena do excedente — recompensa
-// o crescimento sem esvaziar o caixa da empresa. O piso é só referência/alerta (ver
-// dashboard), não entra nessa conta.
-export function calcularProlabore(lucroBase: number, alvo: number, pctExcedente: number): number {
-  if (lucroBase <= 0) return 0
-  if (lucroBase <= alvo) return lucroBase
-  return alvo + (lucroBase - alvo) * (pctExcedente / 100)
+// Pró-labore por faixa de saldo de caixa (não por lucro do mês): libera o valor
+// da faixa mais alta cujo saldo_minimo o saldo ATUAL ainda cobre — a saúde do
+// caixa da empresa vem antes do salário do dono, então se o saldo cair depois
+// de já ter alcançado uma faixa maior, o valor sugerido cai junto (recalculado
+// do zero a cada vez, nunca trava numa faixa antiga).
+export function calcularProlaboreLiberado(saldoTotal: number, faixas: ProlaboreFaixa[]): number {
+  const elegiveis = faixas.filter((f) => f.saldo_minimo <= saldoTotal)
+  if (elegiveis.length === 0) return 0
+  return elegiveis.reduce((maior, f) => (f.saldo_minimo > maior.saldo_minimo ? f : maior)).valor
 }
 
 export type AlocacaoCaixinha = { caixinha: Caixinha; valor: number }

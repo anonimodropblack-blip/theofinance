@@ -131,13 +131,16 @@ export interface Configuracao {
   margem_minima_percentual: number
   custo_fixo_mensal: number
   gasto_ads_mensal: number
-  prolabore_piso: number
-  prolabore_alvo: number
-  prolabore_pct_excedente: number
-  prolabore_descontar_custo_fixo: boolean
   prazo_reposicao_dias: number
   estoque_cobertura_dias: number
   updated_at: string
+}
+
+export interface ProlaboreFaixa {
+  id: string
+  saldo_minimo: number
+  valor: number
+  created_at: string
 }
 
 export interface Caixinha {

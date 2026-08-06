@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -34,7 +33,7 @@ import { toast } from 'sonner'
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { KpiIcon, TONES, TONE_SWATCH, type Tone } from '@/components/dashboard/KpiIcon'
 import { NOMES_ICONES_CATEGORIA, iconeCategoria } from '@/lib/categorias-financeiras'
-import type { Caixinha, CategoriaCusto, CategoriaFinanceira, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque } from '@/types'
+import type { Caixinha, CategoriaCusto, CategoriaFinanceira, Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, ProlaboreFaixa } from '@/types'
 
 export default function ConfiguracoesPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -48,15 +47,12 @@ export default function ConfiguracoesPage() {
   const [faixasFba, setFaixasFba] = useState<FaixaLogisticaFba[]>([])
   const [faixasPreco, setFaixasPreco] = useState<FaixaTaxaMarketplacePreco[]>([])
   const [caixinhas, setCaixinhas] = useState<Caixinha[]>([])
+  const [faixasProlabore, setFaixasProlabore] = useState<ProlaboreFaixa[]>([])
 
   const [imposto, setImposto] = useState('')
   const [margemMinima, setMargemMinima] = useState('')
   const [custoFixoMensal, setCustoFixoMensal] = useState('')
   const [gastoAdsMensal, setGastoAdsMensal] = useState('')
-  const [prolaborePiso, setProlaborePiso] = useState('')
-  const [prolaboreAlvo, setProlaboreAlvo] = useState('')
-  const [prolaborePctExcedente, setProlaborePctExcedente] = useState('')
-  const [prolaboreDescontarCustoFixo, setProlaboreDescontarCustoFixo] = useState(true)
   const [prazoReposicaoDias, setPrazoReposicaoDias] = useState('')
   const [estoqueCoberturaDias, setEstoqueCoberturaDias] = useState('')
 
@@ -81,7 +77,7 @@ export default function ConfiguracoesPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: cfg }, { data: locs }, { data: cats }, { data: catsFin }, { data: fxsFba }, { data: fxsPreco }, { data: cxs }] = await Promise.all([
+    const [{ data: cfg }, { data: locs }, { data: cats }, { data: catsFin }, { data: fxsFba }, { data: fxsPreco }, { data: cxs }, { data: faixasProl }] = await Promise.all([
       supabase.from('configuracoes').select('*').single(),
       supabase.from('locais_estoque').select('*').order('ordem'),
       supabase.from('categorias_custo').select('*').order('created_at'),
@@ -89,16 +85,13 @@ export default function ConfiguracoesPage() {
       supabase.from('faixas_logistica_fba').select('*'),
       supabase.from('faixas_taxa_marketplace_preco').select('*'),
       supabase.from('caixinhas').select('*').order('ordem'),
+      supabase.from('prolabore_faixas').select('*'),
     ])
     setConfig(cfg as Configuracao)
     setImposto(cfg ? String(cfg.imposto_percentual) : '')
     setMargemMinima(cfg ? String(cfg.margem_minima_percentual) : '')
     setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
     setGastoAdsMensal(cfg ? String(cfg.gasto_ads_mensal) : '')
-    setProlaborePiso(cfg ? String(cfg.prolabore_piso) : '')
-    setProlaboreAlvo(cfg ? String(cfg.prolabore_alvo) : '')
-    setProlaborePctExcedente(cfg ? String(cfg.prolabore_pct_excedente) : '')
-    setProlaboreDescontarCustoFixo(cfg ? cfg.prolabore_descontar_custo_fixo : true)
     setPrazoReposicaoDias(cfg ? String(cfg.prazo_reposicao_dias) : '')
     setEstoqueCoberturaDias(cfg ? String(cfg.estoque_cobertura_dias) : '')
     setLocais((locs ?? []) as LocalEstoque[])
@@ -114,6 +107,7 @@ export default function ConfiguracoesPage() {
       ((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[]).sort((a, b) => a.preco_min - b.preco_min)
     )
     setCaixinhas((cxs ?? []) as Caixinha[])
+    setFaixasProlabore(((faixasProl ?? []) as ProlaboreFaixa[]).sort((a, b) => a.saldo_minimo - b.saldo_minimo))
     setLoading(false)
   }, [supabase])
 
@@ -130,10 +124,6 @@ export default function ConfiguracoesPage() {
         margem_minima_percentual: Number(margemMinima.replace(',', '.')) || 0,
         custo_fixo_mensal: Number(custoFixoMensal.replace(',', '.')) || 0,
         gasto_ads_mensal: Number(gastoAdsMensal.replace(',', '.')) || 0,
-        prolabore_piso: Number(prolaborePiso.replace(',', '.')) || 0,
-        prolabore_alvo: Number(prolaboreAlvo.replace(',', '.')) || 0,
-        prolabore_pct_excedente: Number(prolaborePctExcedente.replace(',', '.')) || 0,
-        prolabore_descontar_custo_fixo: prolaboreDescontarCustoFixo,
         prazo_reposicao_dias: Number(prazoReposicaoDias) || 0,
         estoque_cobertura_dias: Number(estoqueCoberturaDias) || 0,
       })
@@ -252,6 +242,35 @@ export default function ConfiguracoesPage() {
       return
     }
     setFaixasFba((prev) => prev.filter((f) => f.id !== faixa.id))
+  }
+
+  async function atualizarFaixaProlabore(faixa: ProlaboreFaixa, campo: 'saldo_minimo' | 'valor', valorTexto: string) {
+    const valor = Number(valorTexto.replace(',', '.'))
+    if (Number.isNaN(valor)) return
+    const { error } = await supabase.from('prolabore_faixas').update({ [campo]: valor }).eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao salvar faixa — talvez já exista outra faixa com esse mesmo saldo mínimo.')
+      return
+    }
+    carregar()
+  }
+
+  async function criarFaixaProlabore() {
+    const { error } = await supabase.from('prolabore_faixas').insert({ saldo_minimo: 0, valor: 0 })
+    if (error) {
+      toast.error('Erro ao criar faixa.')
+      return
+    }
+    carregar()
+  }
+
+  async function excluirFaixaProlabore(faixa: ProlaboreFaixa) {
+    const { error } = await supabase.from('prolabore_faixas').delete().eq('id', faixa.id)
+    if (error) {
+      toast.error('Erro ao excluir faixa.')
+      return
+    }
+    setFaixasProlabore((prev) => prev.filter((f) => f.id !== faixa.id))
   }
 
   async function toggleAtivoFaixaFba(faixa: FaixaLogisticaFba) {
@@ -501,35 +520,50 @@ export default function ConfiguracoesPage() {
       <Card>
         <CardHeader>
           <CardTitle>Pró-labore</CardTitle>
-          <CardDescription>Regra de quanto você retira de salário por mês, calculada em cima do lucro líquido.</CardDescription>
+          <CardDescription>
+            Quanto você pode retirar de salário — por faixa de saldo de caixa (Operacional + Reserva somados), não por lucro do mês. Libera o valor da faixa mais alta que o saldo de hoje cobre; se o saldo cair depois, o valor sugerido cai junto — a saúde da empresa vem antes do salário.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={salvarConfig} className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="prolabore_piso">Piso (R$)</Label>
-                <Input id="prolabore_piso" inputMode="decimal" placeholder="0,00" value={prolaborePiso} onChange={(e) => setProlaborePiso(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prolabore_alvo">Alvo / salário confortável (R$)</Label>
-                <Input id="prolabore_alvo" inputMode="decimal" placeholder="0,00" value={prolaboreAlvo} onChange={(e) => setProlaboreAlvo(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prolabore_pct">% sobre o que passar do alvo</Label>
-                <Input id="prolabore_pct" inputMode="decimal" placeholder="0,00" value={prolaborePctExcedente} onChange={(e) => setProlaborePctExcedente(e.target.value)} />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="prolabore_desconta_custo_fixo" checked={prolaboreDescontarCustoFixo} onCheckedChange={(v) => setProlaboreDescontarCustoFixo(v === true)} />
-              <Label htmlFor="prolabore_desconta_custo_fixo" className="font-normal">Descontar o Custo Fixo Mensal do lucro antes de calcular</Label>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Até o alvo, você recebe o lucro cheio do mês. Acima do alvo, você recebe o alvo fixo + a % configurada sobre o que passar disso — o resto fica na empresa. O piso é só um aviso: se o valor calculado ficar abaixo dele, o Dashboard mostra um alerta.
-            </p>
-            <Button type="submit" disabled={salvandoConfig}>
-              {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
-            </Button>
-          </form>
+        <CardContent className="space-y-3">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>A partir de quanto de saldo (R$)</TableHead>
+                <TableHead className="text-right">Pró-labore liberado (R$)</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {faixasProlabore.map((f) => (
+                <TableRow key={f.id}>
+                  <TableCell>
+                    <Input
+                      inputMode="decimal"
+                      defaultValue={String(f.saldo_minimo)}
+                      className="w-32"
+                      onBlur={(e) => atualizarFaixaProlabore(f, 'saldo_minimo', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      inputMode="decimal"
+                      defaultValue={String(f.valor)}
+                      className="w-32 ml-auto text-right"
+                      onBlur={(e) => atualizarFaixaProlabore(f, 'valor', e.target.value)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => excluirFaixaProlabore(f)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Button type="button" variant="outline" size="sm" onClick={criarFaixaProlabore}>
+            <Plus className="h-3.5 w-3.5" /> Nova faixa
+          </Button>
         </CardContent>
       </Card>
 

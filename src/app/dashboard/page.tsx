@@ -21,13 +21,13 @@ import { calcularProjecao, calcularProjecaoTotal } from '@/lib/produtos-projecao
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import { calcularAlocacaoCaixinhas, calcularProlabore } from '@/lib/prolabore'
+import { calcularAlocacaoCaixinhas, calcularProlaboreLiberado } from '@/lib/prolabore'
 import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoPeriodo } from '@/lib/financeiro'
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { saldoDevedor, statusContaPagar } from '@/lib/contas-pagar'
 import { toast } from 'sonner'
-import type { Caixinha, CategoriaFinanceira, Configuracao, ContaPagar, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
+import type { Caixinha, CategoriaFinanceira, Configuracao, ContaPagar, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, ProlaboreFaixa, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
   const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([])
+  const [faixasProlabore, setFaixasProlabore] = useState<ProlaboreFaixa[]>([])
   const [fechando, setFechando] = useState(false)
   const [aplicandoAlocacao, setAplicandoAlocacao] = useState(false)
   const [retiradaDialogOpen, setRetiradaDialogOpen] = useState(false)
@@ -132,6 +133,7 @@ export default function DashboardPage() {
       { data: vendasCanalData },
       { data: fechamento },
       { data: cts },
+      { data: faixasProl },
     ] = await Promise.all([
       supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
       supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -149,6 +151,7 @@ export default function DashboardPage() {
       supabase.from('vendas_mes_canal').select('*'),
       supabase.from('fechamentos_mensais').select('*').eq('mes_referencia', primeiroDiaMesAtualISO()).maybeSingle(),
       supabase.from('contas_pagar').select('*'),
+      supabase.from('prolabore_faixas').select('*'),
     ])
 
     setProdutos((prods ?? []) as Produto[])
@@ -172,6 +175,7 @@ export default function DashboardPage() {
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
     setFechamentoAtual((fechamento ?? null) as FechamentoMensal | null)
     setContasPagar((cts ?? []) as ContaPagar[])
+    setFaixasProlabore(((faixasProl ?? []) as ProlaboreFaixa[]).sort((a, b) => a.saldo_minimo - b.saldo_minimo))
     setLoading(false)
   }, [supabase])
 
@@ -457,14 +461,15 @@ export default function DashboardPage() {
       return s + lucroMes
     }, 0)
 
-    const lucroBaseProlabore = config.prolabore_descontar_custo_fixo ? lucroLiquidoMensal - (config.custo_fixo_mensal ?? 0) : lucroLiquidoMensal
-    const prolaboreCalculado = calcularProlabore(lucroBaseProlabore, config.prolabore_alvo, config.prolabore_pct_excedente)
-    const retiradoNoPeriodo = totalRetiradoNoPeriodo(lancamentos, periodoInicio, periodoFim)
     const saldo = saldoPorConta(lancamentos)
+    const saldoTotal = saldo.operacional + saldo.reserva
+    const prolaboreCalculado = calcularProlaboreLiberado(saldoTotal, faixasProlabore)
+    const lucroBaseProlabore = lucroLiquidoMensal - (config.custo_fixo_mensal ?? 0)
+    const retiradoNoPeriodo = totalRetiradoNoPeriodo(lancamentos, periodoInicio, periodoFim)
     const alocacaoSugerida = calcularAlocacaoCaixinhas(lucroBaseProlabore - prolaboreCalculado, caixinhas)
 
-    return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, retiradoNoPeriodo, saldo, alocacaoSugerida }
-  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim])
+    return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, saldoTotal, retiradoNoPeriodo, saldo, alocacaoSugerida }
+  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim, faixasProlabore])
 
   async function aplicarAlocacaoCaixinhas() {
     if (!financeiroInfo) return
@@ -1108,12 +1113,15 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {financeiroInfo.prolaboreCalculado < config.prolabore_piso && (
+          {financeiroInfo.prolaboreCalculado === 0 && (
             <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 flex items-center gap-2 text-sm">
               <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
-              O pró-labore sugerido esse mês ({formatCurrency(financeiroInfo.prolaboreCalculado)}) está abaixo do piso configurado ({formatCurrency(config.prolabore_piso)}).
+              Saldo total (Operacional + Reserva) de {formatCurrency(financeiroInfo.saldoTotal)} ainda não bate a menor faixa de pró-labore configurada em Configurações.
             </div>
           )}
+          <p className="text-xs text-muted-foreground">
+            Liberado com base no saldo total de hoje ({formatCurrency(financeiroInfo.saldoTotal)}) — veja as faixas em Configurações.
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <Card size="sm">
