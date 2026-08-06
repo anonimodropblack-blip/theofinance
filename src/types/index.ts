@@ -246,6 +246,9 @@ export interface ContaPagar {
   data_vencimento: string
   pago_em: string | null
   observacao: string | null
+  grupo_parcelamento_id: string | null
+  numero_parcela: number | null
+  total_parcelas: number | null
   created_at: string
 }
 

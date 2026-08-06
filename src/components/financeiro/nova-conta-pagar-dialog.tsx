@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,9 @@ export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Pro
   const [prazoDias, setPrazoDias] = useState('30')
   const [dataVencimento, setDataVencimento] = useState('')
   const [observacao, setObservacao] = useState('')
+  const [parcelado, setParcelado] = useState(false)
+  const [numParcelas, setNumParcelas] = useState('3')
+  const [intervaloDias, setIntervaloDias] = useState('30')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -60,6 +64,9 @@ export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Pro
     setPrazoDias('30')
     setDataVencimento('')
     setObservacao('')
+    setParcelado(false)
+    setNumParcelas('3')
+    setIntervaloDias('30')
   }, [open])
 
   function selecionarLote(id: string) {
@@ -78,6 +85,48 @@ export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Pro
       toast.error('Preencha descrição, valor e data da compra.')
       return
     }
+
+    if (parcelado) {
+      const n = Number(numParcelas)
+      const intervalo = Number(intervaloDias)
+      if (!n || n < 2) {
+        toast.error('Informe pelo menos 2 parcelas.')
+        return
+      }
+      if (!intervalo || intervalo <= 0) {
+        toast.error('Informe o intervalo entre parcelas em dias.')
+        return
+      }
+      const valorParcela = Math.round((valor / n) * 100) / 100
+      const grupoId = crypto.randomUUID()
+      const linhas = Array.from({ length: n }, (_, i) => {
+        const numero = i + 1
+        return {
+          descricao: descricao.trim(),
+          fornecedor: fornecedor.trim() || null,
+          lote_id: loteId || null,
+          valor_total: numero === n ? Math.round((valor - valorParcela * (n - 1)) * 100) / 100 : valorParcela,
+          data_compra: dataCompra,
+          data_vencimento: somarDias(dataCompra, intervalo * numero),
+          observacao: observacao.trim() || null,
+          grupo_parcelamento_id: grupoId,
+          numero_parcela: numero,
+          total_parcelas: n,
+        }
+      })
+      setSaving(true)
+      const { error } = await supabase.from('contas_pagar').insert(linhas)
+      setSaving(false)
+      if (error) {
+        toast.error('Erro ao salvar as parcelas.')
+        return
+      }
+      toast.success(`${n} parcelas registradas`)
+      onOpenChange(false)
+      onSaved()
+      return
+    }
+
     const vencimento = modoPrazo === 'dias'
       ? somarDias(dataCompra, Number(prazoDias) || 0)
       : dataVencimento
@@ -153,32 +202,54 @@ export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Pro
             <Input id="data-compra-cp" type="date" className="max-w-[180px]" value={dataCompra} onChange={(e) => setDataCompra(e.target.value)} required />
           </div>
 
-          <div className="space-y-2">
-            <Label>Prazo de pagamento</Label>
-            <div className="flex items-center gap-2">
-              <Select
-                value={modoPrazo}
-                onValueChange={(v) => setModoPrazo((v as 'dias' | 'data') ?? 'dias')}
-                items={{ dias: 'Dias de prazo', data: 'Data exata' }}
-              >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dias">Dias de prazo</SelectItem>
-                  <SelectItem value="data">Data exata</SelectItem>
-                </SelectContent>
-              </Select>
-              {modoPrazo === 'dias' ? (
-                <Input inputMode="numeric" className="w-24" placeholder="30" value={prazoDias} onChange={(e) => setPrazoDias(e.target.value)} />
-              ) : (
-                <Input type="date" className="max-w-[180px]" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} />
+          <div className="flex items-center gap-2">
+            <Checkbox id="parcelado-cp" checked={parcelado} onCheckedChange={(v) => setParcelado(v === true)} />
+            <Label htmlFor="parcelado-cp" className="font-normal">Parcelar em várias vezes</Label>
+          </div>
+
+          {parcelado ? (
+            <div className="space-y-2">
+              <Label>Parcelamento</Label>
+              <div className="flex items-center gap-2">
+                <Input inputMode="numeric" className="w-20" placeholder="3" value={numParcelas} onChange={(e) => setNumParcelas(e.target.value)} />
+                <span className="text-sm text-muted-foreground shrink-0">parcelas, a cada</span>
+                <Input inputMode="numeric" className="w-20" placeholder="30" value={intervaloDias} onChange={(e) => setIntervaloDias(e.target.value)} />
+                <span className="text-sm text-muted-foreground shrink-0">dias</span>
+              </div>
+              {dataCompra && Number(numParcelas) > 0 && Number(intervaloDias) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  1ª parcela vence em {somarDias(dataCompra, Number(intervaloDias)).split('-').reverse().join('/')}, última em {somarDias(dataCompra, Number(intervaloDias) * Number(numParcelas)).split('-').reverse().join('/')}.
+                </p>
               )}
             </div>
-            {modoPrazo === 'dias' && dataCompra && prazoDias && (
-              <p className="text-xs text-muted-foreground">Vence em {somarDias(dataCompra, Number(prazoDias) || 0).split('-').reverse().join('/')}</p>
-            )}
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Prazo de pagamento</Label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={modoPrazo}
+                  onValueChange={(v) => setModoPrazo((v as 'dias' | 'data') ?? 'dias')}
+                  items={{ dias: 'Dias de prazo', data: 'Data exata' }}
+                >
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dias">Dias de prazo</SelectItem>
+                    <SelectItem value="data">Data exata</SelectItem>
+                  </SelectContent>
+                </Select>
+                {modoPrazo === 'dias' ? (
+                  <Input inputMode="numeric" className="w-24" placeholder="30" value={prazoDias} onChange={(e) => setPrazoDias(e.target.value)} />
+                ) : (
+                  <Input type="date" className="max-w-[180px]" value={dataVencimento} onChange={(e) => setDataVencimento(e.target.value)} />
+                )}
+              </div>
+              {modoPrazo === 'dias' && dataCompra && prazoDias && (
+                <p className="text-xs text-muted-foreground">Vence em {somarDias(dataCompra, Number(prazoDias) || 0).split('-').reverse().join('/')}</p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="obs-cp">Observação (opcional)</Label>

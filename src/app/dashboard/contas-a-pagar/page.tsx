@@ -162,6 +162,9 @@ export default function ContasAPagarPage() {
                 <div className="flex items-center gap-3 min-w-0">
                   <span className={`shrink-0 w-12 ${COR_STATUS[status]}`}>{formatDataCurta(c.data_vencimento)}</span>
                   <span className="font-medium truncate">{c.descricao}</span>
+                  {c.numero_parcela != null && c.total_parcelas != null && (
+                    <Badge variant="outline" className="shrink-0">Parcela {c.numero_parcela} de {c.total_parcelas}</Badge>
+                  )}
                   {c.fornecedor && <span className="text-xs text-muted-foreground shrink-0">{c.fornecedor}</span>}
                   <Badge variant={BADGE_VARIANT[status]} className="shrink-0">
                     {STATUS_LABEL[status]}
