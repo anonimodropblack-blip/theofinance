@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader2, Wallet, Warehouse, TrendingUp, Percent, AlertTriangle, Boxes, Receipt, Search, ArrowUpDown, ClipboardList, ShoppingCart, Tag, RefreshCw, Megaphone, Gauge, Rocket, HandCoins, PiggyBank, Landmark, CalendarCheck, Store, Factory, ChevronRight, PackageCheck } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -81,6 +88,7 @@ export default function DashboardPage() {
   const [atualizando, setAtualizando] = useState(false)
   const [periodoInicio, setPeriodoInicio] = useState(primeiroDiaMesAtualISO())
   const [periodoFim, setPeriodoFim] = useState(hojeISO())
+  const [canalFiltroId, setCanalFiltroId] = useState('')
 
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [locais, setLocais] = useState<LocalEstoque[]>([])
@@ -201,12 +209,28 @@ export default function DashboardPage() {
     return mapa
   }, [loteItens, loteCustos])
 
+  // Quando um canal é selecionado no filtro do topo, essas duas funções restringem
+  // vendas/mês (por produto) só àquele canal — usadas em todo cálculo que hoje soma
+  // todos os canais junto, pra deixar de ficar sempre "genericão geral".
+  const vendasCanalDoProduto = useCallback(
+    (produtoId: string): Record<string, number> => {
+      const todos = vendasCanal[produtoId] ?? {}
+      if (!canalFiltroId) return todos
+      return { [canalFiltroId]: todos[canalFiltroId] ?? 0 }
+    },
+    [vendasCanal, canalFiltroId]
+  )
+  const vendasMesProdutoFiltrado = useCallback(
+    (produtoId: string): number => canalFiltroId ? (vendasCanal[produtoId]?.[canalFiltroId] ?? 0) : totalVendasProduto(vendasCanal, produtoId),
+    [vendasCanal, canalFiltroId]
+  )
+
   const vendasReaisMes = useMemo(() => {
-    const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim)
+    const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim && (!canalFiltroId || p.local_id === canalFiltroId))
     const faturamentoReal = doPeriodo.reduce((s, p) => s + p.quantidade * p.preco_unitario, 0)
     const custoReal = doPeriodo.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
     return { faturamentoReal, custoReal, lucroReal: faturamentoReal - custoReal }
-  }, [pedidos, custoAtualPorProduto, periodoInicio, periodoFim])
+  }, [pedidos, custoAtualPorProduto, periodoInicio, periodoFim, canalFiltroId])
 
   const operacao = useMemo(() => {
     const estoquePorProduto = new Map<string, number>()
@@ -316,10 +340,12 @@ export default function DashboardPage() {
     }, 0)
     const investimentoTotal = investimentoMercadoria + investimentoLogistica
 
-    // estoque total (unidades + valor ao custo atual)
+    // estoque total (unidades + valor ao custo atual) — se um canal tá filtrado, só
+    // conta o que tá fisicamente naquele local (ex: quanto de estoque tá na FBA agora).
+    const estoqueFiltrado = canalFiltroId ? estoque.filter((e) => e.local_id === canalFiltroId) : estoque
     let estoqueUnidades = 0
     let estoqueValor = 0
-    for (const e of estoque) {
+    for (const e of estoqueFiltrado) {
       estoqueUnidades += e.quantidade
       const custo = custoAtualPorProduto.get(e.produto_id)
       if (custo != null) estoqueValor += custo * e.quantidade
@@ -339,7 +365,7 @@ export default function DashboardPage() {
     let pesoTotal = 0
     const produtosAbaixo = new Set<string>()
 
-    for (const e of estoque) {
+    for (const e of estoqueFiltrado) {
       if (e.quantidade <= 0) continue
       const produto = produtoPorId.get(e.produto_id)
       const custoFixoTotal = custoAtualPorProduto.get(e.produto_id)
@@ -382,7 +408,7 @@ export default function DashboardPage() {
     let pedidosMes = 0
     let gastoAdsMensal = 0
     for (const p of produtos) {
-      const vendasMesProduto = totalVendasProduto(vendasCanal, p.id)
+      const vendasMesProduto = vendasMesProdutoFiltrado(p.id)
       if (p.preco_venda == null || vendasMesProduto === 0) continue
       faturamentoMensal += p.preco_venda * vendasMesProduto
       pedidosMes += vendasMesProduto
@@ -415,7 +441,7 @@ export default function DashboardPage() {
       tacosPct,
       roas,
     }
-  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, unidadesPorLote, custoAtualPorProduto])
+  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, unidadesPorLote, custoAtualPorProduto, canalFiltroId, vendasMesProdutoFiltrado])
 
   const financeiroInfo = useMemo(() => {
     if (!config) return null
@@ -441,11 +467,15 @@ export default function DashboardPage() {
   }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim])
 
   async function aplicarAlocacaoCaixinhas() {
-    if (!financeiroInfo || financeiroInfo.alocacaoSugerida.length === 0) return
+    if (!financeiroInfo) return
+    const linhasComValor = financeiroInfo.alocacaoSugerida.filter((a) => a.valor > 0)
+    if (linhasComValor.length === 0) {
+      toast.error('Não tem lucro sobrando pra dividir esse mês ainda — o pró-labore já consome tudo.')
+      return
+    }
     if (!window.confirm('Isso vai lançar essa divisão de verdade no Financeiro (uma saída pra cada caixinha). Confirmar?')) return
     const { data: categoriaCaixinha } = await supabase.from('categorias_financeiras').select('id').eq('nome', 'Caixinha').single()
-    const linhas = financeiroInfo.alocacaoSugerida
-      .filter((a) => a.valor > 0)
+    const linhas = linhasComValor
       .map((a) => ({
         tipo: 'saida' as const,
         conta: a.caixinha.conta_destino,
@@ -493,11 +523,29 @@ export default function DashboardPage() {
     })
   }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
 
+  // Igual projecaoTodosProdutos, mas respeitando o filtro de canal do topo — separado
+  // de propósito: o fechamento mensal precisa sempre do negócio inteiro (projecaoTodosProdutos),
+  // só a tabela abaixo é que deve refletir o canal selecionado.
+  const projecaoFiltradaPorCanal = useMemo(() => {
+    const impostoPercentual = config?.imposto_percentual ?? 0
+    const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+    const locaisPorId = new Map(locais.map((l) => [l.id, l]))
+    const custoRealPorProduto = calcularCustoRealPorProduto(loteItens, loteCustos)
+    const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
+    const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
+
+    return produtos.map((p) => {
+      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanalDoProduto(p.id), locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const margemPct = faturamento > 0 ? (lucroMes / faturamento) * 100 : null
+      return { produto: p, margemPct, lucroMes, vendasQtd, faturamento }
+    })
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, vendasCanalDoProduto])
+
   const relatorioProdutos = useMemo(() => {
     const q = relatorioBusca.toLowerCase()
     const filtradas = q
-      ? projecaoTodosProdutos.filter((l) => l.produto.nome.toLowerCase().includes(q) || (l.produto.fabricante ?? '').toLowerCase().includes(q))
-      : projecaoTodosProdutos
+      ? projecaoFiltradaPorCanal.filter((l) => l.produto.nome.toLowerCase().includes(q) || (l.produto.fabricante ?? '').toLowerCase().includes(q))
+      : projecaoFiltradaPorCanal
 
     const chave = (l: (typeof filtradas)[number]) => {
       if (relatorioOrdem === 'vendasMes') return l.vendasQtd
@@ -506,7 +554,7 @@ export default function DashboardPage() {
     }
 
     return [...filtradas].sort((a, b) => (chave(b) - chave(a)) * (relatorioDesc ? 1 : -1))
-  }, [projecaoTodosProdutos, relatorioBusca, relatorioOrdem, relatorioDesc])
+  }, [projecaoFiltradaPorCanal, relatorioBusca, relatorioOrdem, relatorioDesc])
 
   // Mesma projeção, agregada por canal em vez de por produto — alimenta o pivot Canal x
   // Mês do Histórico e o fechamento mensal.
@@ -660,12 +708,32 @@ export default function DashboardPage() {
           <Input type="date" className="h-8 w-[9.5rem]" value={periodoInicio} onChange={(e) => setPeriodoInicio(e.target.value)} />
           <span className="text-xs text-muted-foreground">até</span>
           <Input type="date" className="h-8 w-[9.5rem]" value={periodoFim} onChange={(e) => setPeriodoFim(e.target.value)} />
+          <Select
+            value={canalFiltroId}
+            onValueChange={(v) => setCanalFiltroId(v ?? '')}
+            items={{ '': 'Todos os canais', ...Object.fromEntries(locais.map((l) => [l.id, l.nome])) }}
+          >
+            <SelectTrigger size="sm" className="w-[170px]">
+              <SelectValue placeholder="Todos os canais" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todos os canais</SelectItem>
+              {locais.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button type="button" variant="outline" size="sm" onClick={atualizar} disabled={atualizando}>
             <RefreshCw className={`h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
         </div>
       </div>
+      {canalFiltroId && (
+        <p className="-mt-6 text-xs text-muted-foreground">
+          Mostrando só <strong>{locais.find((l) => l.id === canalFiltroId)?.nome}</strong> — Saldo, Pró-labore e Central de Alertas continuam do negócio inteiro (são decisões financeiras/operacionais, não fazem sentido só de um canal).
+        </p>
+      )}
 
       {/* Resumo da Operação — os números que respondem "como a empresa está agora" */}
       <div className="space-y-3">
@@ -1078,17 +1146,25 @@ export default function DashboardPage() {
             <Card size="sm" className="gap-3">
               <CardContent className="space-y-3">
                 <p className="text-sm font-medium">Pra onde vai o resto do lucro</p>
-                <div className="space-y-1.5">
-                  {financeiroInfo.alocacaoSugerida.map(({ caixinha, valor }) => (
-                    <div key={caixinha.id} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{caixinha.nome} ({caixinha.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)</span>
-                      <span className="font-medium">{formatCurrency(valor)}</span>
+                {financeiroInfo.alocacaoSugerida.every((a) => a.valor <= 0) ? (
+                  <p className="text-sm text-muted-foreground">
+                    Não sobrou lucro pra dividir esse mês ainda — o pró-labore sugerido acima já consome tudo. As porcentagens de cada caixinha ficam em Configurações.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      {financeiroInfo.alocacaoSugerida.map(({ caixinha, valor }) => (
+                        <div key={caixinha.id} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{caixinha.nome} ({caixinha.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%)</span>
+                          <span className="font-medium">{formatCurrency(valor)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <Button type="button" size="sm" variant="secondary" disabled={aplicandoAlocacao} onClick={aplicarAlocacaoCaixinhas}>
-                  {aplicandoAlocacao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Registrar essa divisão'}
-                </Button>
+                    <Button type="button" size="sm" variant="secondary" disabled={aplicandoAlocacao} onClick={aplicarAlocacaoCaixinhas}>
+                      {aplicandoAlocacao ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Registrar essa divisão'}
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
