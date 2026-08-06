@@ -9,9 +9,10 @@ import { NovoPedidoDialog } from '@/components/pedidos/novo-pedido-dialog'
 import { PedidoItem } from '@/components/pedidos/pedido-item'
 import { ajustarEstoque } from '@/lib/estoque'
 import { somarVendaMesCanal } from '@/lib/vendas-canal'
+import { agruparPrecosPorLocal, type PrecosPorProdutoCanal } from '@/lib/precos'
 import { formatCurrency, type PedidoCompleto } from '@/lib/pedidos'
 import { toast } from 'sonner'
-import type { Estoque, LocalEstoque, Pedido, Produto } from '@/types'
+import type { Estoque, LocalEstoque, Pedido, PrecoPorLocal, Produto } from '@/types'
 
 export default function VendasPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -19,12 +20,13 @@ export default function VendasPage() {
   const [produtos, setProdutos] = useState<Produto[]>([])
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [estoque, setEstoque] = useState<Estoque[]>([])
+  const [precosPorCanal, setPrecosPorCanal] = useState<PrecosPorProdutoCanal>({})
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data: peds }, { data: prods }, { data: locs }, { data: est }] = await Promise.all([
+    const [{ data: peds }, { data: prods }, { data: locs }, { data: est }, { data: precosData }] = await Promise.all([
       supabase
         .from('pedidos')
         .select('*, produto:produtos(*), local:local_id(*)')
@@ -33,11 +35,13 @@ export default function VendasPage() {
       supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
       supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
       supabase.from('estoque').select('*'),
+      supabase.from('precos_por_local').select('*'),
     ])
     setPedidos((peds ?? []) as unknown as PedidoCompleto[])
     setProdutos((prods ?? []) as Produto[])
     setLocais((locs ?? []) as LocalEstoque[])
     setEstoque((est ?? []) as Estoque[])
+    setPrecosPorCanal(agruparPrecosPorLocal((precosData ?? []) as PrecoPorLocal[]))
     setLoading(false)
   }, [supabase])
 
@@ -145,6 +149,7 @@ export default function VendasPage() {
         produtos={produtos}
         locais={locais}
         estoque={estoque}
+        precosPorCanal={precosPorCanal}
         onSaved={carregar}
       />
     </div>

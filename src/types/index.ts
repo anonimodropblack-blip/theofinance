@@ -175,6 +175,14 @@ export interface Estoque {
   quantidade: number
 }
 
+export interface PrecoPorLocal {
+  id: string
+  produto_id: string
+  local_id: string
+  preco_venda: number
+  created_at: string
+}
+
 export interface VendaMesCanal {
   id: string
   produto_id: string

@@ -39,6 +39,7 @@ import {
   Hash,
   FileText,
 } from 'lucide-react'
+import { precoVendaEfetivo, type PrecosPorProdutoCanal } from '@/lib/precos'
 import type { Estoque, LocalEstoque, Produto } from '@/types'
 
 type Props = {
@@ -47,6 +48,7 @@ type Props = {
   produtos: Produto[]
   locais: LocalEstoque[]
   estoque: Estoque[]
+  precosPorCanal: PrecosPorProdutoCanal
   onSaved: () => void
 }
 
@@ -212,7 +214,7 @@ function validarItem(item: ItemPedido, estoque: Estoque[]): Erros {
   return erros
 }
 
-export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque, onSaved }: Props) {
+export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque, precosPorCanal, onSaved }: Props) {
   const [supabase] = useState(() => createClient())
   const [modoMassa, setModoMassa] = useState(false)
   const [itens, setItens] = useState<ItemPedido[]>([novoItem()])
@@ -236,10 +238,19 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
     setItens((prev) => prev.map((it) => (it.uid === uid ? { ...it, ...patch, erros: {} } : it)))
   }
 
-  function selecionarProduto(uid: string, produto: Produto) {
+  function selecionarProduto(uid: string, produto: Produto, localId: string) {
+    const precoEfetivo = precoVendaEfetivo(produto.id, produto.preco_venda, localId || null, precosPorCanal)
     atualizarItem(uid, {
       produto,
-      precoUnitario: produto.preco_venda != null ? String(produto.preco_venda) : '',
+      precoUnitario: precoEfetivo != null ? String(precoEfetivo) : '',
+    })
+  }
+
+  function selecionarLocal(uid: string, item: ItemPedido, localId: string) {
+    const precoEfetivo = item.produto ? precoVendaEfetivo(item.produto.id, item.produto.preco_venda, localId || null, precosPorCanal) : null
+    atualizarItem(uid, {
+      localId,
+      precoUnitario: precoEfetivo != null ? String(precoEfetivo) : item.precoUnitario,
     })
   }
 
@@ -373,7 +384,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
                     produtos={produtos}
                     estoque={estoque}
                     value={item.produto}
-                    onChange={(p) => selecionarProduto(item.uid, p)}
+                    onChange={(p) => selecionarProduto(item.uid, p, item.localId)}
                   />
                   {item.erros.produto && <p className="text-xs text-destructive">{item.erros.produto}</p>}
                 </div>
@@ -385,7 +396,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
                     </Label>
                     <Select
                       value={item.localId}
-                      onValueChange={(v) => atualizarItem(item.uid, { localId: v ?? '' })}
+                      onValueChange={(v) => selecionarLocal(item.uid, item, v ?? '')}
                       items={Object.fromEntries(locais.map((l) => [l.id, l.nome]))}
                     >
                       <SelectTrigger className="w-full">

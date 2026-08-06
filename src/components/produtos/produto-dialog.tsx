@@ -153,7 +153,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="preco_venda">Preço de venda (R$)</Label>
+              <Label htmlFor="preco_venda">Preço de venda padrão (R$)</Label>
               <Input
                 id="preco_venda"
                 inputMode="decimal"
@@ -161,6 +161,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
                 value={precoVenda}
                 onChange={(e) => setPrecoVenda(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">Usado em todo canal, a não ser que você defina um preço específico pra ele em Produtos ou Precificação.</p>
             </div>
             <div className="space-y-2">
               <Label>Status</Label>

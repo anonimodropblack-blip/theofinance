@@ -39,10 +39,11 @@ import { agruparVendasCanal, totalVendasProduto, type VendasPorProdutoCanal } fr
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
 import { custoRealKit, estoqueDisponivelKit } from '@/lib/kits'
 import { ajustarEstoque } from '@/lib/estoque'
+import { agruparPrecosPorLocal, precoVendaEfetivo, salvarPrecoPorLocal, type PrecosPorProdutoCanal } from '@/lib/precos'
 import { COR_ALERTA, COR_FATURAMENTO, COR_POSITIVO, corMargem, corSinal } from '@/lib/cores'
 import { calcularDiasEstoque, calcularMediaDiaria, calcularSugestaoPedido } from '@/lib/reposicao'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensalProduto, KitComponente, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensalProduto, KitComponente, LocalEstoque, PrecoPorLocal, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
 
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
@@ -144,6 +145,7 @@ export default function ProdutosPage() {
   const [modoSelecao, setModoSelecao] = useState(false)
   const [aplicandoTodosPrecos, setAplicandoTodosPrecos] = useState(false)
   const [vendasCanal, setVendasCanal] = useState<VendasPorProdutoCanal>({})
+  const [precosPorCanal, setPrecosPorCanal] = useState<PrecosPorProdutoCanal>({})
   const [fechamentosPorProduto, setFechamentosPorProduto] = useState<Record<string, FechamentoMensalProduto[]>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const arrastoRef = useRef<{ x: number; scrollLeft: number } | null>(null)
@@ -164,7 +166,7 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }, { data: fechamentosProdutosData }, { data: kitsComp }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }, { data: fechamentosProdutosData }, { data: kitsComp }, { data: precosData }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
@@ -177,6 +179,7 @@ export default function ProdutosPage() {
       supabase.from('vendas_mes_canal').select('*'),
       supabase.from('fechamentos_mensais_produtos').select('*'),
       supabase.from('kit_componentes').select('*'),
+      supabase.from('precos_por_local').select('*'),
     ])
 
     const kitComponentesCarregados = (kitsComp ?? []) as KitComponente[]
@@ -221,6 +224,7 @@ export default function ProdutosPage() {
     setLoteItens((itens ?? []) as LoteItemComLote[])
     setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
+    setPrecosPorCanal(agruparPrecosPorLocal((precosData ?? []) as PrecoPorLocal[]))
     const fechamentosAgrupados: Record<string, FechamentoMensalProduto[]> = {}
     for (const f of (fechamentosProdutosData ?? []) as FechamentoMensalProduto[]) {
       if (!fechamentosAgrupados[f.produto_id]) fechamentosAgrupados[f.produto_id] = []
@@ -271,34 +275,46 @@ export default function ProdutosPage() {
   )
   const labelColunaExtra = localSelecionado?.usa_tarifa_fba ? 'Logística FBA' : localSelecionado?.usa_taxa_por_faixa ? 'Taxa Fixa' : '—'
 
+  // Preço efetivo de um produto no canal selecionado: usa a exceção cadastrada pra esse
+  // canal (precosPorCanal) se existir, senão cai no preço padrão do produto — é isso que
+  // faz o preço poder ser diferente por plataforma em vez de sempre o mesmo campo global.
+  const precoEfetivoDe = useCallback(
+    (p: Produto) => precoVendaEfetivo(p.id, p.preco_venda, localSelecionadoId, precosPorCanal),
+    [localSelecionadoId, precosPorCanal]
+  )
+
   const totais = useMemo(() => {
     let lucroMes = 0
     let lucroTotal = 0
     let brutoTotal = 0
     for (const p of produtos) {
       if (p.status !== 'ativo') continue
+      const precoEfetivo = precoEfetivoDe(p)
+      const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
       const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
-      const projecao = calcularProjecao(p, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const projecao = calcularProjecao(produtoEfetivo, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
-      if (p.preco_venda != null) brutoTotal += p.preco_venda * p.estoqueTotal
+      if (precoEfetivo != null) brutoTotal += precoEfetivo * p.estoqueTotal
     }
     return { lucroMes, lucroTotal, brutoTotal }
-  }, [produtos, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
+  }, [produtos, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, precoEfetivoDe])
 
   // Produtos cujo preço sugerido (pra bater a margem mínima configurada) difere do preço
   // atual em pelo menos 1 centavo — tanto pra cima (margem baixa) quanto pra baixo (margem
   // sobrando, dá pra baixar o preço). Base do botão "Aplicar todos".
   const sugestoesPendentes = useMemo(() => {
     return filtrados.flatMap((p) => {
-      if (p.preco_venda == null) return []
+      const precoEfetivo = precoEfetivoDe(p)
+      if (precoEfetivo == null) return []
+      const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
       const custoReal = custoRealPorProduto[p.id] ?? null
       const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
-      const { precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
-      if (precoSugerido == null || Math.abs(precoSugerido - p.preco_venda) < 0.01) return []
+      const { precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      if (precoSugerido == null || Math.abs(precoSugerido - precoEfetivo) < 0.01) return []
       return [{ produto: p, precoSugerido }]
     })
-  }, [filtrados, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade])
+  }, [filtrados, custoRealPorProduto, localSelecionado, localSelecionadoId, vendasCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, precoEfetivoDe])
 
   function abrirNovo() {
     setEditando(null)
@@ -330,28 +346,28 @@ export default function ProdutosPage() {
   }
 
   async function aplicarPrecoSugerido(p: Produto, precoSugerido: number) {
-    const { error } = await supabase.from('produtos').update({ preco_venda: precoSugerido }).eq('id', p.id)
-    if (error) {
+    if (!localSelecionadoId) return
+    try {
+      await salvarPrecoPorLocal(supabase, p.id, localSelecionadoId, precoSugerido)
+    } catch {
       toast.error('Erro ao aplicar preço sugerido.')
       return
     }
-    toast.success(`Preço de ${p.nome} atualizado para ${formatCurrency(precoSugerido)}`)
+    toast.success(`Preço de ${p.nome} em ${localSelecionado?.nome ?? 'canal'} atualizado para ${formatCurrency(precoSugerido)}`)
     carregar()
   }
 
   async function aplicarTodosPrecosSugeridos() {
-    if (sugestoesPendentes.length === 0) return
+    if (sugestoesPendentes.length === 0 || !localSelecionadoId) return
     setAplicandoTodosPrecos(true)
-    const resultados = await Promise.all(
-      sugestoesPendentes.map(({ produto, precoSugerido }) =>
-        supabase.from('produtos').update({ preco_venda: precoSugerido }).eq('id', produto.id)
-      )
+    const resultados = await Promise.allSettled(
+      sugestoesPendentes.map(({ produto, precoSugerido }) => salvarPrecoPorLocal(supabase, produto.id, localSelecionadoId, precoSugerido))
     )
     setAplicandoTodosPrecos(false)
-    const falhas = resultados.filter((r) => r.error).length
+    const falhas = resultados.filter((r) => r.status === 'rejected').length
     if (falhas > 0) toast.error(`${falhas} produto(s) não puderam ser atualizados.`)
     const sucesso = sugestoesPendentes.length - falhas
-    if (sucesso > 0) toast.success(`Preço sugerido aplicado em ${sucesso} produto(s)`)
+    if (sucesso > 0) toast.success(`Preço sugerido aplicado em ${sucesso} produto(s) (${localSelecionado?.nome ?? 'canal'})`)
     carregar()
   }
 
@@ -397,21 +413,27 @@ export default function ProdutosPage() {
       toast.error('Informe o percentual de variação.')
       return
     }
-    const alvo = produtos.filter((p) => selecionados.has(p.id) && p.preco_venda != null)
+    if (!localSelecionadoId) return
+    const alvo = produtos
+      .filter((p) => selecionados.has(p.id))
+      .flatMap((p) => {
+        const precoEfetivo = precoEfetivoDe(p)
+        return precoEfetivo != null ? [{ produto: p, precoEfetivo }] : []
+      })
     if (alvo.length === 0) {
       toast.error('Nenhum produto selecionado tem preço de venda cadastrado.')
       return
     }
     setAplicandoPreco(true)
     await Promise.all(
-      alvo.map((p) => {
-        const novoPreco = Math.round(p.preco_venda! * (1 + pct / 100) * 100) / 100
-        return supabase.from('produtos').update({ preco_venda: novoPreco }).eq('id', p.id)
+      alvo.map(({ produto, precoEfetivo }) => {
+        const novoPreco = Math.round(precoEfetivo * (1 + pct / 100) * 100) / 100
+        return salvarPrecoPorLocal(supabase, produto.id, localSelecionadoId, novoPreco)
       })
     )
     setAplicandoPreco(false)
     setPctPreco('')
-    toast.success(`Preço ajustado em ${alvo.length} produto(s)`)
+    toast.success(`Preço ajustado em ${alvo.length} produto(s) (${localSelecionado?.nome ?? 'canal'})`)
     carregar()
   }
 
@@ -567,7 +589,7 @@ export default function ProdutosPage() {
           <p className="text-xs text-muted-foreground">
             {modoSelecao
               ? 'Clique em qualquer linha pra selecionar/desselecionar.'
-              : 'Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora. Exceção: Vendas/Mês agora é por canal, edite no formulário completo.'}
+              : 'Clique em qualquer valor da tabela pra editar direto — salva sozinho e recalcula na hora. Exceção: Vendas/Mês agora é por canal, edite no formulário completo. Revenda: edita o preço só do canal selecionado acima ("•" = já tem preço específico desse canal).'}
           </p>
         </div>
       </div>
@@ -737,15 +759,18 @@ export default function ProdutosPage() {
               {filtrados.map((p, index) => {
                 const custoReal = custoRealPorProduto[p.id] ?? null
                 const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
-                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(p, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+                const precoEfetivo = precoEfetivoDe(p)
+                const temExcecaoCanal = precoEfetivo !== p.preco_venda
+                const produtoEfetivo = temExcecaoCanal ? { ...p, preco_venda: precoEfetivo } : p
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
                 const diasEstoque = calcularDiasEstoque(p.estoqueTotal, mediaDiaria)
                 const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0)
-                const precisaAjuste = precoSugerido != null && p.preco_venda != null && Math.abs(precoSugerido - p.preco_venda) >= 0.01
-                const aumentando = precisaAjuste && precoSugerido! > p.preco_venda!
-                const variacaoPct = precisaAjuste && p.preco_venda ? ((precoSugerido! - p.preco_venda) / p.preco_venda) * 100 : null
+                const precisaAjuste = precoSugerido != null && precoEfetivo != null && Math.abs(precoSugerido - precoEfetivo) >= 0.01
+                const aumentando = precisaAjuste && precoSugerido! > precoEfetivo!
+                const variacaoPct = precisaAjuste && precoEfetivo ? ((precoSugerido! - precoEfetivo) / precoEfetivo) * 100 : null
                 return (
                 <TableRow
                   key={p.id}
@@ -809,13 +834,20 @@ export default function ProdutosPage() {
                     {sugestaoPedido != null && sugestaoPedido > 0 ? sugestaoPedido : sugestaoPedido === 0 ? '—' : <span className="text-muted-foreground font-normal" title="Sem histórico de mês fechado pra esse produto ainda">sem dados</span>}
                   </TableCell>
                   <TableCell className={`text-right whitespace-nowrap ${COR_FATURAMENTO}`}>
-                    <CelulaEditavel
-                      valor={p.preco_venda != null ? String(p.preco_venda) : ''}
-                      exibir={formatCurrency(p.preco_venda)}
-                      align="right"
-                      tipo="decimal"
-                      onSalvar={(v) => salvarCampo(p.id, 'preco_venda', paraNumero(v))}
-                    />
+                    <span title={temExcecaoCanal ? `Preço específico de ${localSelecionado?.nome} — o padrão do produto é ${formatCurrency(p.preco_venda)}` : 'Preço padrão do produto (mesmo em todo canal sem exceção)'}>
+                      <CelulaEditavel
+                        valor={precoEfetivo != null ? String(precoEfetivo) : ''}
+                        exibir={`${formatCurrency(precoEfetivo)}${temExcecaoCanal ? ' •' : ''}`}
+                        align="right"
+                        tipo="decimal"
+                        onSalvar={async (v) => {
+                          const num = paraNumero(v)
+                          if (num == null || !localSelecionadoId) return
+                          await salvarPrecoPorLocal(supabase, p.id, localSelecionadoId, num)
+                          await carregar()
+                        }}
+                      />
+                    </span>
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(taxaPct)})</span>

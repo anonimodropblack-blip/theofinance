@@ -110,7 +110,8 @@ export function calcularProjecaoTotal(
   faixasPreco: FaixaTaxaMarketplacePreco[],
   impostoPercentual: number,
   margemMinimaPercentual: number,
-  adsDiluidoPorUnidade = 0
+  adsDiluidoPorUnidade = 0,
+  precosPorCanal: Record<string, number> = {}
 ): ProjecaoTotalProduto {
   let lucroMes = 0
   let vendasQtd = 0
@@ -118,10 +119,12 @@ export function calcularProjecaoTotal(
   for (const [localId, qtd] of Object.entries(vendasCanalProduto)) {
     if (qtd <= 0) continue
     const local = locaisPorId.get(localId) ?? null
-    const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+    const precoEfetivo = precosPorCanal[localId] ?? p.preco_venda
+    const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
+    const r = calcularProjecao(produtoEfetivo, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
     lucroMes += r.lucroMes ?? 0
     vendasQtd += qtd
-    faturamento += (p.preco_venda ?? 0) * qtd
+    faturamento += (precoEfetivo ?? 0) * qtd
   }
   return { lucroMes, vendasQtd, faturamento }
 }

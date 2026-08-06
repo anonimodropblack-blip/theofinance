@@ -24,10 +24,11 @@ import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import { calcularAlocacaoCaixinhas, calcularProlaboreLiberado } from '@/lib/prolabore'
 import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoPeriodo } from '@/lib/financeiro'
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
+import { agruparPrecosPorLocal, precoVendaEfetivo, type PrecosPorProdutoCanal } from '@/lib/precos'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { saldoDevedor, statusContaPagar } from '@/lib/contas-pagar'
 import { toast } from 'sonner'
-import type { Caixinha, CategoriaFinanceira, Configuracao, ContaPagar, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, ProlaboreFaixa, Produto, VendaMesCanal } from '@/types'
+import type { Caixinha, CategoriaFinanceira, Configuracao, ContaPagar, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, PrecoPorLocal, ProlaboreFaixa, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -107,6 +108,7 @@ export default function DashboardPage() {
   const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([])
   const [faixasProlabore, setFaixasProlabore] = useState<ProlaboreFaixa[]>([])
+  const [precosPorCanal, setPrecosPorCanal] = useState<PrecosPorProdutoCanal>({})
   const [fechando, setFechando] = useState(false)
   const [aplicandoAlocacao, setAplicandoAlocacao] = useState(false)
   const [retiradaDialogOpen, setRetiradaDialogOpen] = useState(false)
@@ -134,6 +136,7 @@ export default function DashboardPage() {
       { data: fechamento },
       { data: cts },
       { data: faixasProl },
+      { data: precosData },
     ] = await Promise.all([
       supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
       supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -152,6 +155,7 @@ export default function DashboardPage() {
       supabase.from('fechamentos_mensais').select('*').eq('mes_referencia', primeiroDiaMesAtualISO()).maybeSingle(),
       supabase.from('contas_pagar').select('*'),
       supabase.from('prolabore_faixas').select('*'),
+      supabase.from('precos_por_local').select('*'),
     ])
 
     setProdutos((prods ?? []) as Produto[])
@@ -176,6 +180,7 @@ export default function DashboardPage() {
     setFechamentoAtual((fechamento ?? null) as FechamentoMensal | null)
     setContasPagar((cts ?? []) as ContaPagar[])
     setFaixasProlabore(((faixasProl ?? []) as ProlaboreFaixa[]).sort((a, b) => a.saldo_minimo - b.saldo_minimo))
+    setPrecosPorCanal(agruparPrecosPorLocal((precosData ?? []) as PrecoPorLocal[]))
     setLoading(false)
   }, [supabase])
 
@@ -373,16 +378,17 @@ export default function DashboardPage() {
       if (e.quantidade <= 0) continue
       const produto = produtoPorId.get(e.produto_id)
       const custoFixoTotal = custoAtualPorProduto.get(e.produto_id)
-      if (!produto || produto.preco_venda == null) continue
+      const precoEfetivoKpi = produto ? precoVendaEfetivo(produto.id, produto.preco_venda, e.local_id, precosPorCanal) : null
+      if (!produto || precoEfetivoKpi == null) continue
 
-      faturamentoBruto += produto.preco_venda * e.quantidade
+      faturamentoBruto += precoEfetivoKpi * e.quantidade
       if (custoFixoTotal == null) continue
 
       const localReal = localPorId.get(e.local_id) ?? null
       const local = localReal?.tipo === 'marketplace' ? localReal : localPadraoKpi
       const usandoAdsDiluidoKpi = produto.ads_modo == null && adsDiluidoPorUnidadeKpi > 0
       const r = calcularPrecificacao({
-        precoVenda: produto.preco_venda,
+        precoVenda: precoEfetivoKpi,
         pesoGramas: produto.peso_gramas,
         custoFixoTotal,
         local,
@@ -445,7 +451,7 @@ export default function DashboardPage() {
       tacosPct,
       roas,
     }
-  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, unidadesPorLote, custoAtualPorProduto, canalFiltroId, vendasMesProdutoFiltrado])
+  }, [config, locais, produtos, estoque, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, unidadesPorLote, custoAtualPorProduto, canalFiltroId, vendasMesProdutoFiltrado, precosPorCanal])
 
   const financeiroInfo = useMemo(() => {
     if (!config) return null
@@ -457,7 +463,7 @@ export default function DashboardPage() {
     const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config.gasto_ads_mensal ?? 0) / totalVendasMes : 0
 
     const lucroLiquidoMensal = produtos.reduce((s, p) => {
-      const { lucroMes } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const { lucroMes } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, precosPorCanal[p.id] ?? {})
       return s + lucroMes
     }, 0)
 
@@ -469,7 +475,7 @@ export default function DashboardPage() {
     const alocacaoSugerida = calcularAlocacaoCaixinhas(lucroBaseProlabore - prolaboreCalculado, caixinhas)
 
     return { lucroLiquidoMensal, lucroBaseProlabore, prolaboreCalculado, saldoTotal, retiradoNoPeriodo, saldo, alocacaoSugerida }
-  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim, faixasProlabore])
+  }, [config, locais, produtos, loteItens, loteCustos, faixasFba, faixasPreco, lancamentos, caixinhas, vendasCanal, periodoInicio, periodoFim, faixasProlabore, precosPorCanal])
 
   async function aplicarAlocacaoCaixinhas() {
     if (!financeiroInfo) return
@@ -522,11 +528,11 @@ export default function DashboardPage() {
     const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
 
     return produtos.map((p) => {
-      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanal[p.id] ?? {}, locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, precosPorCanal[p.id] ?? {})
       const margemPct = faturamento > 0 ? (lucroMes / faturamento) * 100 : null
       return { produto: p, margemPct, lucroMes, vendasQtd, faturamento }
     })
-  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal])
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, precosPorCanal])
 
   // Igual projecaoTodosProdutos, mas respeitando o filtro de canal do topo — separado
   // de propósito: o fechamento mensal precisa sempre do negócio inteiro (projecaoTodosProdutos),
@@ -540,11 +546,11 @@ export default function DashboardPage() {
     const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
 
     return produtos.map((p) => {
-      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanalDoProduto(p.id), locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const { lucroMes, vendasQtd, faturamento } = calcularProjecaoTotal(p, custoRealPorProduto[p.id] ?? null, vendasCanalDoProduto(p.id), locaisPorId, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, precosPorCanal[p.id] ?? {})
       const margemPct = faturamento > 0 ? (lucroMes / faturamento) * 100 : null
       return { produto: p, margemPct, lucroMes, vendasQtd, faturamento }
     })
-  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, vendasCanalDoProduto])
+  }, [produtos, config, locais, loteItens, loteCustos, faixasFba, faixasPreco, vendasCanal, vendasCanalDoProduto, precosPorCanal])
 
   const relatorioProdutos = useMemo(() => {
     const q = relatorioBusca.toLowerCase()

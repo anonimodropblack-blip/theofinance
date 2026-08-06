@@ -16,8 +16,9 @@ import { toast } from 'sonner'
 import { Loader2, CircleCheck, CircleAlert, CircleHelp } from 'lucide-react'
 import { calcularPrecificacao } from '@/lib/precificacao'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
+import { agruparPrecosPorLocal, precoVendaEfetivo, removerPrecoPorLocal, salvarPrecoPorLocal, type PrecosPorProdutoCanal } from '@/lib/precos'
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
-import type { Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto, VendaMesCanal } from '@/types'
+import type { Configuracao, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, PrecoPorLocal, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -38,42 +39,46 @@ export default function PrecificacaoPage() {
   const [loteItens, setLoteItens] = useState<LoteItemComLote[]>([])
   const [loteCustos, setLoteCustos] = useState<LoteCustoComCategoria[]>([])
   const [vendasCanalRows, setVendasCanalRows] = useState<VendaMesCanal[]>([])
+  const [precosPorCanal, setPrecosPorCanal] = useState<PrecosPorProdutoCanal>({})
   const [produtoId, setProdutoId] = useState('')
   const [localId, setLocalId] = useState('')
   const [loading, setLoading] = useState(true)
   const [editAdsModo, setEditAdsModo] = useState<'' | 'percentual' | 'valor'>('')
   const [editAdsValor, setEditAdsValor] = useState('')
   const [salvandoAds, setSalvandoAds] = useState(false)
+  const [editPrecoCanal, setEditPrecoCanal] = useState('')
+  const [salvandoPrecoCanal, setSalvandoPrecoCanal] = useState(false)
 
-  useEffect(() => {
-    async function carregarBase() {
-      const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanal }] = await Promise.all([
-        supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
-        supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
-        supabase.from('configuracoes').select('*').single(),
-        supabase.from('faixas_logistica_fba').select('*'),
-        supabase.from('faixas_taxa_marketplace_preco').select('*'),
-        supabase.from('lote_itens').select('*, lote:lotes(*)'),
-        supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
-        supabase.from('vendas_mes_canal').select('*'),
-      ])
-      setProdutos((prods ?? []) as Produto[])
-      setLocais((locs ?? []) as LocalEstoque[])
-      setConfig(cfg as Configuracao)
-      setFaixasFba((fxs ?? []) as FaixaLogisticaFba[])
-      setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
-      setLoteItens((itens ?? []) as LoteItemComLote[])
-      setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
-      setVendasCanalRows((vendasCanal ?? []) as VendaMesCanal[])
-      if (prods && prods.length > 0) setProdutoId(prods[0].id)
-      if (locs && locs.length > 0) {
-        const marketplace = locs.find((l) => l.tipo === 'marketplace')
-        setLocalId((marketplace ?? locs[0]).id)
-      }
-      setLoading(false)
+  async function carregarBase() {
+    const [{ data: prods }, { data: locs }, { data: cfg }, { data: fxs }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanal }, { data: precosData }] = await Promise.all([
+      supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
+      supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('configuracoes').select('*').single(),
+      supabase.from('faixas_logistica_fba').select('*'),
+      supabase.from('faixas_taxa_marketplace_preco').select('*'),
+      supabase.from('lote_itens').select('*, lote:lotes(*)'),
+      supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
+      supabase.from('vendas_mes_canal').select('*'),
+      supabase.from('precos_por_local').select('*'),
+    ])
+    setProdutos((prods ?? []) as Produto[])
+    setLocais((locs ?? []) as LocalEstoque[])
+    setConfig(cfg as Configuracao)
+    setFaixasFba((fxs ?? []) as FaixaLogisticaFba[])
+    setFaixasPreco((fxsPreco ?? []) as FaixaTaxaMarketplacePreco[])
+    setLoteItens((itens ?? []) as LoteItemComLote[])
+    setLoteCustos((custos ?? []) as LoteCustoComCategoria[])
+    setVendasCanalRows((vendasCanal ?? []) as VendaMesCanal[])
+    setPrecosPorCanal(agruparPrecosPorLocal((precosData ?? []) as PrecoPorLocal[]))
+    if (prods && prods.length > 0) setProdutoId((atual) => atual || prods[0].id)
+    if (locs && locs.length > 0) {
+      const marketplace = locs.find((l) => l.tipo === 'marketplace')
+      setLocalId((atual) => atual || (marketplace ?? locs[0]).id)
     }
-    carregarBase()
-  }, [supabase])
+    setLoading(false)
+  }
+
+  useEffect(() => { carregarBase() }, [supabase]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
 
@@ -82,6 +87,46 @@ export default function PrecificacaoPage() {
     setEditAdsModo(p?.ads_modo ?? '')
     setEditAdsValor(p?.ads_valor != null ? String(p.ads_valor) : '')
   }, [produtoId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const excecao = precosPorCanal[produtoId]?.[localId]
+    setEditPrecoCanal(excecao != null ? String(excecao) : '')
+  }, [produtoId, localId, precosPorCanal])
+
+  async function salvarPrecoCanal() {
+    if (!produtoId || !localId) return
+    const valor = Number(editPrecoCanal.replace(',', '.'))
+    if (!valor || valor <= 0) {
+      toast.error('Informe um preço válido.')
+      return
+    }
+    setSalvandoPrecoCanal(true)
+    try {
+      await salvarPrecoPorLocal(supabase, produtoId, localId, valor)
+    } catch {
+      setSalvandoPrecoCanal(false)
+      toast.error('Erro ao salvar o preço desse canal.')
+      return
+    }
+    setSalvandoPrecoCanal(false)
+    toast.success('Preço desse canal atualizado')
+    carregarBase()
+  }
+
+  async function usarPrecoPadrao() {
+    if (!produtoId || !localId) return
+    setSalvandoPrecoCanal(true)
+    try {
+      await removerPrecoPorLocal(supabase, produtoId, localId)
+    } catch {
+      setSalvandoPrecoCanal(false)
+      toast.error('Erro ao remover o preço específico.')
+      return
+    }
+    setSalvandoPrecoCanal(false)
+    toast.success('Voltou a usar o preço padrão nesse canal')
+    carregarBase()
+  }
 
   async function salvarAds() {
     if (!produtoId) return
@@ -104,7 +149,8 @@ export default function PrecificacaoPage() {
   const custoReal = produto ? custoRealPorProduto[produto.id] ?? null : null
   const semLote = produto != null && custoReal == null
 
-  const precoVenda = produto?.preco_venda ?? 0
+  const precoVenda = produto ? precoVendaEfetivo(produto.id, produto.preco_venda, localId, precosPorCanal) ?? 0 : 0
+  const temExcecaoCanal = produto != null && precosPorCanal[produto.id]?.[localId] != null
   const custoFixoTotal = (custoReal?.custoUnitario ?? 0) + (custoReal?.custosLogistica.reduce((s, c) => s + c.valor, 0) ?? 0)
 
   // produtos já vem filtrado por status 'ativo' (linha 51) -- soma só vendas de produtos
@@ -276,8 +322,25 @@ export default function PrecificacaoPage() {
 
           <div className="pt-3 mt-2 border-t border-border space-y-1.5">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Preço Atual</span>
+              <span className="text-muted-foreground">Preço Atual{temExcecaoCanal ? ` (só ${local?.nome})` : ' (padrão)'}</span>
               <span className={`font-medium ${COR_FATURAMENTO}`}>{formatCurrency(precoVenda)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 pt-1">
+              <Input
+                inputMode="decimal"
+                placeholder="Preço só nesse canal"
+                className="h-8 text-sm"
+                value={editPrecoCanal}
+                onChange={(e) => setEditPrecoCanal(e.target.value)}
+              />
+              <Button type="button" size="sm" variant="secondary" className="h-8 shrink-0" onClick={salvarPrecoCanal} disabled={salvandoPrecoCanal}>
+                {salvandoPrecoCanal ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Salvar'}
+              </Button>
+              {temExcecaoCanal && (
+                <Button type="button" size="sm" variant="ghost" className="h-8 shrink-0 text-xs" onClick={usarPrecoPadrao} disabled={salvandoPrecoCanal}>
+                  Usar padrão
+                </Button>
+              )}
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Lucro</span>
