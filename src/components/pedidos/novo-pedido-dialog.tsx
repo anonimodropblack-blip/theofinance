@@ -276,7 +276,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
         observacao: observacao.trim() || null,
       })
       if (error) {
-        toast.error(`Erro ao lançar pedido de "${it.produto!.nome}".`)
+        toast.error(`Erro ao lançar venda de "${it.produto!.nome}".`)
         setSalvando(false)
         return
       }
@@ -284,13 +284,13 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
         await ajustarEstoque(supabase, it.produto!.id, it.localId, -it.quantidade)
         await somarVendaMesCanal(supabase, it.produto!.id, it.localId, it.quantidade)
       } catch {
-        toast.error(`Pedido de "${it.produto!.nome}" foi salvo, mas não deu pra atualizar estoque/vendas. Confira manualmente.`)
+        toast.error(`Venda de "${it.produto!.nome}" foi salva, mas não deu pra atualizar estoque/vendas. Confira manualmente.`)
         setSalvando(false)
         return
       }
     }
     setSalvando(false)
-    toast.success(validados.length === 1 ? 'Pedido lançado com sucesso.' : `${validados.length} pedidos lançados com sucesso.`)
+    toast.success(validados.length === 1 ? 'Venda lançada com sucesso.' : `${validados.length} vendas lançadas com sucesso.`)
     onOpenChange(false)
     onSaved()
   }
@@ -316,7 +316,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
               <Package className="h-5 w-5" />
             </span>
             <div>
-              <DialogTitle className="text-[28px] font-semibold leading-tight">Novo Pedido</DialogTitle>
+              <DialogTitle className="text-[28px] font-semibold leading-tight">Nova Venda</DialogTitle>
               <DialogDescription className="text-sm">Crie um novo lançamento de venda.</DialogDescription>
             </div>
           </div>
@@ -465,7 +465,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
               </Button>
               {itens.length > 1 && (
                 <div key={totalGeral} className="flex animate-in items-center justify-between rounded-xl border border-border px-4 py-3 fade-in-0">
-                  <span className="text-sm font-medium">Total do pedido</span>
+                  <span className="text-sm font-medium">Total da venda</span>
                   <span className="text-lg font-semibold">{formatCurrency(totalGeral)}</span>
                 </div>
               )}
@@ -490,7 +490,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
               rows={3}
-              placeholder="Adicione uma observação para este pedido..."
+              placeholder="Adicione uma observação para esta venda..."
             />
           </div>
         </div>
@@ -500,7 +500,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
               Cancelar
             </DialogClose>
             <Button type="submit" disabled={salvando}>
-              {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Lançar Pedido'}
+              {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Lançar Venda'}
             </Button>
           </DialogFooter>
         </form>

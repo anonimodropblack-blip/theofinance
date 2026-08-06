@@ -13,7 +13,7 @@ import { formatCurrency, type PedidoCompleto } from '@/lib/pedidos'
 import { toast } from 'sonner'
 import type { Estoque, LocalEstoque, Pedido, Produto } from '@/types'
 
-export default function PedidosPage() {
+export default function VendasPage() {
   const supabase = useMemo(() => createClient(), [])
   const [pedidos, setPedidos] = useState<PedidoCompleto[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
@@ -65,11 +65,11 @@ export default function PedidosPage() {
     }
     const { error } = await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedido.id)
     if (error) {
-      toast.error('Erro ao alterar status do pedido.')
+      toast.error('Erro ao alterar status da venda.')
       return
     }
     toast.success(
-      novoStatus === 'confirmado' ? 'Pedido reativado' : novoStatus === 'devolvido' ? 'Pedido marcado como devolvido' : 'Pedido marcado como cancelado'
+      novoStatus === 'confirmado' ? 'Venda reativada' : novoStatus === 'devolvido' ? 'Venda marcada como devolvida' : 'Venda marcada como cancelada'
     )
     carregar()
   }
@@ -90,10 +90,10 @@ export default function PedidosPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Pedidos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Vendas</h1>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" />
-          Novo Pedido
+          Nova Venda
         </Button>
       </div>
 
@@ -132,7 +132,7 @@ export default function PedidosPage() {
         ) : pedidos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
             <ShoppingCart className="h-8 w-8 mb-3 opacity-40" />
-            <p className="text-sm">Nenhum pedido lançado ainda.</p>
+            <p className="text-sm">Nenhuma venda lançada ainda.</p>
           </div>
         ) : (
           pedidos.map((p) => <PedidoItem key={p.id} pedido={p} onAlterarStatus={(status) => alterarStatusPedido(p, status)} />)

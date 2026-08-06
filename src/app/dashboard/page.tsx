@@ -820,11 +820,11 @@ export default function DashboardPage() {
             <span className="font-normal text-xs text-muted-foreground">({formatData(periodoInicio)} – {formatData(periodoFim)})</span>
           </h2>
           <p className="text-xs text-muted-foreground">
-            A partir dos pedidos lançados nesse período — diferente da projeção acima, que usa o ritmo atual de vendas.
+            A partir das vendas lançadas nesse período — diferente da projeção acima, que usa o ritmo atual de vendas.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Link href="/dashboard/pedidos" className="block">
+          <Link href="/dashboard/vendas" className="block">
             <Card size="sm" className="transition-colors hover:border-primary/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
@@ -835,7 +835,7 @@ export default function DashboardPage() {
             </Card>
           </Link>
 
-          <Link href="/dashboard/pedidos" className="block">
+          <Link href="/dashboard/vendas" className="block">
             <Card size="sm" className="transition-colors hover:border-primary/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
@@ -856,7 +856,7 @@ export default function DashboardPage() {
             <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
               <KpiIcon icon={Store} tone="violet" /> Faturamento Real por Canal
             </CardTitle>
-            <CardDescription className="text-xs">A partir dos pedidos lançados no período selecionado acima.</CardDescription>
+            <CardDescription className="text-xs">A partir das vendas lançadas no período selecionado acima.</CardDescription>
           </CardHeader>
           <CardContent className="h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -980,29 +980,29 @@ export default function DashboardPage() {
           </Card>
         </Link>
 
-        <Link href="/dashboard/pedidos" className="block">
+        <Link href="/dashboard/vendas" className="block">
           <Card size="sm" className="transition-colors hover:border-primary/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos do Dia
+                <KpiIcon icon={ShoppingCart} tone="blue" /> Vendas do Dia
               </CardTitle>
             </CardHeader>
             <CardContent className="text-lg font-semibold">{operacao.pedidosHoje}</CardContent>
           </Card>
         </Link>
 
-        <Link href="/dashboard/pedidos" className="block">
+        <Link href="/dashboard/vendas" className="block">
           <Card size="sm" className="transition-colors hover:border-primary/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
-                <KpiIcon icon={ShoppingCart} tone="blue" /> Pedidos/Mês (estimado)
+                <KpiIcon icon={ShoppingCart} tone="blue" /> Vendas/Mês (estimado)
               </CardTitle>
             </CardHeader>
             <CardContent className="text-lg font-semibold">{kpis.pedidosMes}</CardContent>
           </Card>
         </Link>
 
-        <Link href="/dashboard/pedidos" className="block">
+        <Link href="/dashboard/vendas" className="block">
           <Card size="sm" className="transition-colors hover:border-primary/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
