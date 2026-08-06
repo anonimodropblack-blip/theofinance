@@ -19,8 +19,17 @@ export interface Produto {
   peso_gramas: number | null
   ads_modo: 'percentual' | 'valor' | null
   ads_valor: number | null
+  eh_kit: boolean
   created_at: string
   updated_at: string
+}
+
+export interface KitComponente {
+  id: string
+  kit_id: string
+  componente_id: string
+  quantidade: number
+  created_at: string
 }
 
 export interface Fabricante {
@@ -176,6 +185,7 @@ export interface Pedido {
   local_id: string
   quantidade: number
   preco_unitario: number
+  status: 'confirmado' | 'devolvido' | 'cancelado'
   data: string
   observacao: string | null
   created_at: string
@@ -211,6 +221,20 @@ export interface FechamentoMensalCanal {
   vendas_qtd: number
   faturamento: number
   lucro: number
+}
+
+export interface ContaPagar {
+  id: string
+  descricao: string
+  fornecedor: string | null
+  lote_id: string | null
+  valor_total: number
+  valor_pago: number
+  data_compra: string
+  data_vencimento: string
+  pago_em: string | null
+  observacao: string | null
+  created_at: string
 }
 
 export interface Movimentacao {

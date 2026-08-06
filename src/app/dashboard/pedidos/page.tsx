@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Loader2, ShoppingCart } from 'lucide-react'
 import { NovoPedidoDialog } from '@/components/pedidos/novo-pedido-dialog'
 import { PedidoItem } from '@/components/pedidos/pedido-item'
-import type { PedidoCompleto } from '@/lib/pedidos'
-import type { Estoque, LocalEstoque, Produto } from '@/types'
+import { ajustarEstoque } from '@/lib/estoque'
+import { somarVendaMesCanal } from '@/lib/vendas-canal'
+import { formatCurrency, type PedidoCompleto } from '@/lib/pedidos'
+import { toast } from 'sonner'
+import type { Estoque, LocalEstoque, Pedido, Produto } from '@/types'
 
 export default function PedidosPage() {
   const supabase = useMemo(() => createClient(), [])
@@ -39,6 +43,50 @@ export default function PedidosPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // Muda o status de um pedido (confirmado/devolvido/cancelado). Ao SAIR de
+  // "confirmado" devolve a quantidade pro estoque e tira da estimativa de
+  // vendas/mês; ao VOLTAR pra "confirmado" faz o inverso — mantém estoque e
+  // vendas/mês corretos independente de quantas vezes o status mudar.
+  async function alterarStatusPedido(pedido: PedidoCompleto, novoStatus: Pedido['status']) {
+    if (novoStatus === pedido.status) return
+    const eraConfirmado = pedido.status === 'confirmado'
+    const ficaConfirmado = novoStatus === 'confirmado'
+    try {
+      if (eraConfirmado && !ficaConfirmado) {
+        await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
+      } else if (!eraConfirmado && ficaConfirmado) {
+        await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
+      }
+    } catch {
+      toast.error('Não deu pra ajustar estoque/vendas. Status não foi alterado.')
+      return
+    }
+    const { error } = await supabase.from('pedidos').update({ status: novoStatus }).eq('id', pedido.id)
+    if (error) {
+      toast.error('Erro ao alterar status do pedido.')
+      return
+    }
+    toast.success(
+      novoStatus === 'confirmado' ? 'Pedido reativado' : novoStatus === 'devolvido' ? 'Pedido marcado como devolvido' : 'Pedido marcado como cancelado'
+    )
+    carregar()
+  }
+
+  const resumo = useMemo(() => {
+    let vendidoQtd = 0, vendidoValor = 0
+    let devolvidoQtd = 0, devolvidoValor = 0
+    let canceladoQtd = 0, canceladoValor = 0
+    for (const p of pedidos) {
+      const valor = p.quantidade * p.preco_unitario
+      if (p.status === 'confirmado') { vendidoQtd += p.quantidade; vendidoValor += valor }
+      else if (p.status === 'devolvido') { devolvidoQtd += p.quantidade; devolvidoValor += valor }
+      else { canceladoQtd += p.quantidade; canceladoValor += valor }
+    }
+    return { vendidoQtd, vendidoValor, devolvidoQtd, devolvidoValor, canceladoQtd, canceladoValor }
+  }, [pedidos])
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -47,6 +95,33 @@ export default function PedidosPage() {
           <Plus className="h-4 w-4" />
           Novo Pedido
         </Button>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Confirmados</CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">
+            {resumo.vendidoQtd} un. <span className="text-sm text-muted-foreground font-normal">({formatCurrency(resumo.vendidoValor)})</span>
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Devoluções</CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">
+            {resumo.devolvidoQtd} un. <span className="text-sm text-muted-foreground font-normal">({formatCurrency(resumo.devolvidoValor)})</span>
+          </CardContent>
+        </Card>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-xs font-normal">Cancelamentos</CardTitle>
+          </CardHeader>
+          <CardContent className="text-lg font-semibold">
+            {resumo.canceladoQtd} un. <span className="text-sm text-muted-foreground font-normal">({formatCurrency(resumo.canceladoValor)})</span>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="rounded-lg border border-border divide-y divide-border">
@@ -60,7 +135,7 @@ export default function PedidosPage() {
             <p className="text-sm">Nenhum pedido lançado ainda.</p>
           </div>
         ) : (
-          pedidos.map((p) => <PedidoItem key={p.id} pedido={p} />)
+          pedidos.map((p) => <PedidoItem key={p.id} pedido={p} onAlterarStatus={(status) => alterarStatusPedido(p, status)} />)
         )}
       </div>
 

@@ -17,6 +17,7 @@ import {
   Wallet,
   History,
   ShoppingCart,
+  Receipt,
 } from 'lucide-react'
 
 const NAV = [
@@ -29,6 +30,7 @@ const NAV = [
   { href: '/dashboard/estoque', label: 'Estoque', icon: Warehouse },
   { href: '/dashboard/movimentacoes', label: 'Movimentações', icon: Tags },
   { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet },
+  { href: '/dashboard/contas-a-pagar', label: 'Contas a Pagar', icon: Receipt },
   { href: '/dashboard/historico', label: 'Histórico', icon: History },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },
 ]

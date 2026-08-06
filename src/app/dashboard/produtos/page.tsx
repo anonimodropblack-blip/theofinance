@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { Plus, Search, MoreHorizontal, Loader2, Package, ArrowUp, ArrowDown, Wand2 } from 'lucide-react'
 import { ProdutoDialog } from '@/components/produtos/produto-dialog'
+import { KitDialog } from '@/components/produtos/kit-dialog'
 import { FabricanteInput } from '@/components/produtos/fabricante-input'
 import { CelulaEditavel, CelulaSelectEditavel } from '@/components/produtos/celula-editavel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,11 +37,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { calcularProjecao } from '@/lib/produtos-projecao'
 import { agruparVendasCanal, totalVendasProduto, type VendasPorProdutoCanal } from '@/lib/vendas-canal'
 import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemComLote } from '@/lib/custo-real'
+import { custoRealKit, estoqueDisponivelKit } from '@/lib/kits'
 import { ajustarEstoque } from '@/lib/estoque'
 import { COR_ALERTA, COR_FATURAMENTO, COR_POSITIVO, corMargem, corSinal } from '@/lib/cores'
 import { calcularDiasEstoque, calcularMediaDiaria, calcularSugestaoPedido } from '@/lib/reposicao'
 import { toast } from 'sonner'
-import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensalProduto, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
+import type { Configuracao, Fabricante, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensalProduto, KitComponente, LocalEstoque, Produto, UnidadeEmbalagem, VendaMesCanal } from '@/types'
 
 const UNIDADES_EMBALAGEM: readonly UnidadeEmbalagem[] = ['cápsulas', 'ml', 'gotas', 'porções', 'softgel']
 const STATUS_OPCOES = ['ativo', 'inativo'] as const
@@ -126,6 +128,9 @@ export default function ProdutosPage() {
   const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editando, setEditando] = useState<Produto | null>(null)
+  const [kitDialogOpen, setKitDialogOpen] = useState(false)
+  const [editandoKit, setEditandoKit] = useState<Produto | null>(null)
+  const [kitComponentes, setKitComponentes] = useState<KitComponente[]>([])
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [pctPreco, setPctPreco] = useState('')
   const [aplicandoPreco, setAplicandoPreco] = useState(false)
@@ -159,7 +164,7 @@ export default function ProdutosPage() {
 
   const carregar = useCallback(async () => {
     setLoading(true)
-    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }, { data: fechamentosProdutosData }] = await Promise.all([
+    const [{ data, error }, { data: fabs }, { data: cfg }, { data: locs }, { data: locsEstoque }, { data: fxsFba }, { data: fxsPreco }, { data: itens }, { data: custos }, { data: vendasCanalData }, { data: fechamentosProdutosData }, { data: kitsComp }] = await Promise.all([
       supabase.from('produtos').select('*, estoque(quantidade)').order('nome'),
       supabase.from('fabricantes').select('*').order('nome'),
       supabase.from('configuracoes').select('*').single(),
@@ -171,17 +176,31 @@ export default function ProdutosPage() {
       supabase.from('lote_custos').select('*, categoria:categorias_custo(*)'),
       supabase.from('vendas_mes_canal').select('*'),
       supabase.from('fechamentos_mensais_produtos').select('*'),
+      supabase.from('kit_componentes').select('*'),
     ])
 
+    const kitComponentesCarregados = (kitsComp ?? []) as KitComponente[]
+    setKitComponentes(kitComponentesCarregados)
+
     if (!error && data) {
+      const semKits = data.map((p) => {
+        const { estoque, ...produto } = p as Produto & { estoque: { quantidade: number }[] }
+        return {
+          ...produto,
+          estoqueTotal: estoque.reduce((soma, e) => soma + e.quantidade, 0),
+        }
+      })
+      const estoqueTotalPorProduto = Object.fromEntries(semKits.map((p) => [p.id, p.estoqueTotal]))
+      const componentesPorKit = new Map<string, KitComponente[]>()
+      for (const c of kitComponentesCarregados) {
+        componentesPorKit.set(c.kit_id, [...(componentesPorKit.get(c.kit_id) ?? []), c])
+      }
       setProdutos(
-        data.map((p) => {
-          const { estoque, ...produto } = p as Produto & { estoque: { quantidade: number }[] }
-          return {
-            ...produto,
-            estoqueTotal: estoque.reduce((soma, e) => soma + e.quantidade, 0),
-          }
-        })
+        semKits.map((p) =>
+          p.eh_kit
+            ? { ...p, estoqueTotal: estoqueDisponivelKit(componentesPorKit.get(p.id) ?? [], estoqueTotalPorProduto) }
+            : p
+        )
       )
     }
     setFabricantes((fabs ?? []) as Fabricante[])
@@ -223,7 +242,33 @@ export default function ProdutosPage() {
   const localSelecionado = locais.find((l) => l.id === localSelecionadoId) ?? null
   const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
   const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
-  const custoRealPorProduto = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
+  const custoRealBase = useMemo(() => calcularCustoRealPorProduto(loteItens, loteCustos), [loteItens, loteCustos])
+  // Custo unitário "disponível" por produto (real se tem lote, senão o estimado do
+  // cadastro) — usado pra somar o custo dos componentes de cada kit.
+  const custoUnitarioPorProdutoBase = useMemo(() => {
+    const resultado: Record<string, number | null> = {}
+    for (const p of produtos) {
+      if (p.eh_kit) continue
+      const real = custoRealBase[p.id]
+      resultado[p.id] = real ? real.custoUnitario + real.custosLogistica.reduce((s, c) => s + c.valor, 0) : p.preco_custo_unitario
+    }
+    return resultado
+  }, [custoRealBase, produtos])
+  const custoRealPorProduto = useMemo(() => {
+    const componentesPorKit = new Map<string, KitComponente[]>()
+    for (const c of kitComponentes) componentesPorKit.set(c.kit_id, [...(componentesPorKit.get(c.kit_id) ?? []), c])
+    const resultado = { ...custoRealBase }
+    for (const p of produtos) {
+      if (!p.eh_kit) continue
+      const custoKit = custoRealKit(componentesPorKit.get(p.id) ?? [], custoUnitarioPorProdutoBase)
+      if (custoKit) resultado[p.id] = custoKit
+    }
+    return resultado
+  }, [custoRealBase, kitComponentes, produtos, custoUnitarioPorProdutoBase])
+  const estoqueTotalPorProdutoBase = useMemo(
+    () => Object.fromEntries(produtos.filter((p) => !p.eh_kit).map((p) => [p.id, p.estoqueTotal])),
+    [produtos]
+  )
   const labelColunaExtra = localSelecionado?.usa_tarifa_fba ? 'Logística FBA' : localSelecionado?.usa_taxa_por_faixa ? 'Taxa Fixa' : '—'
 
   const totais = useMemo(() => {
@@ -263,6 +308,16 @@ export default function ProdutosPage() {
   function abrirEdicao(p: Produto) {
     setEditando(p)
     setDialogOpen(true)
+  }
+
+  function abrirNovoKit() {
+    setEditandoKit(null)
+    setKitDialogOpen(true)
+  }
+
+  function abrirEdicaoKit(p: Produto) {
+    setEditandoKit(p)
+    setKitDialogOpen(true)
   }
 
   async function salvarCampo(id: string, campo: string, valor: unknown) {
@@ -435,10 +490,16 @@ export default function ProdutosPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Produtos</h1>
-        <Button onClick={abrirNovo}>
-          <Plus className="h-4 w-4" />
-          Novo Produto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={abrirNovoKit}>
+            <Plus className="h-4 w-4" />
+            Novo Kit
+          </Button>
+          <Button onClick={abrirNovo}>
+            <Plus className="h-4 w-4" />
+            Novo Produto
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-2xl">
@@ -700,7 +761,10 @@ export default function ProdutosPage() {
                     <CelulaFabricante valor={p.fabricante ?? ''} fabricantes={fabricantes} onSalvar={(v) => salvarCampo(p.id, 'fabricante', v || null)} />
                   </TableCell>
                   <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background">
-                    <CelulaEditavel valor={p.nome} onSalvar={async (v) => { if (v.trim()) await salvarCampo(p.id, 'nome', v.trim()) }} />
+                    <div className="flex items-center gap-1.5">
+                      {p.eh_kit && <Badge variant="secondary" className="shrink-0">Kit</Badge>}
+                      <CelulaEditavel valor={p.nome} onSalvar={async (v) => { if (v.trim()) await salvarCampo(p.id, 'nome', v.trim()) }} />
+                    </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <CelulaEditavel valor={p.composicao ?? ''} onSalvar={(v) => salvarCampo(p.id, 'composicao', v.trim() || null)} />
@@ -844,7 +908,9 @@ export default function ProdutosPage() {
                         }
                       />
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => abrirEdicao(p)}>Editar (formulário completo)</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => (p.eh_kit ? abrirEdicaoKit(p) : abrirEdicao(p))}>
+                          {p.eh_kit ? 'Editar kit' : 'Editar (formulário completo)'}
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => excluirProduto(p)} className="text-destructive">Excluir</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -863,6 +929,17 @@ export default function ProdutosPage() {
         produto={editando}
         locaisMarketplace={locais}
         vendasCanalProduto={editando ? vendasCanal[editando.id] ?? {} : {}}
+        onSaved={carregar}
+      />
+
+      <KitDialog
+        open={kitDialogOpen}
+        onOpenChange={setKitDialogOpen}
+        kit={editandoKit}
+        componentesAtuais={editandoKit ? kitComponentes.filter((c) => c.kit_id === editandoKit.id) : []}
+        produtosDisponiveis={produtos}
+        custoUnitarioPorProduto={custoUnitarioPorProdutoBase}
+        estoqueTotalPorProduto={estoqueTotalPorProdutoBase}
         onSaved={carregar}
       />
     </div>

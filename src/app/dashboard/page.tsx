@@ -18,8 +18,9 @@ import { calcularAlocacaoCaixinhas, calcularProlabore } from '@/lib/prolabore'
 import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoPeriodo } from '@/lib/financeiro'
 import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
+import { saldoDevedor, statusContaPagar } from '@/lib/contas-pagar'
 import { toast } from 'sonner'
-import type { Caixinha, CategoriaFinanceira, Configuracao, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
+import type { Caixinha, CategoriaFinanceira, Configuracao, ContaPagar, Estoque, FaixaLogisticaFba, FaixaTaxaMarketplacePreco, FechamentoMensal, LancamentoFinanceiro, LocalEstoque, Lote, Pedido, Produto, VendaMesCanal } from '@/types'
 
 function formatCurrency(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -96,6 +97,7 @@ export default function DashboardPage() {
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
   const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
+  const [contasPagar, setContasPagar] = useState<ContaPagar[]>([])
   const [fechando, setFechando] = useState(false)
   const [aplicandoAlocacao, setAplicandoAlocacao] = useState(false)
   const [retiradaDialogOpen, setRetiradaDialogOpen] = useState(false)
@@ -121,6 +123,7 @@ export default function DashboardPage() {
       { data: peds },
       { data: vendasCanalData },
       { data: fechamento },
+      { data: cts },
     ] = await Promise.all([
       supabase.from('produtos').select('*').eq('status', 'ativo').order('nome'),
       supabase.from('locais_estoque').select('*').eq('ativo', true).order('ordem'),
@@ -137,6 +140,7 @@ export default function DashboardPage() {
       supabase.from('pedidos').select('*'),
       supabase.from('vendas_mes_canal').select('*'),
       supabase.from('fechamentos_mensais').select('*').eq('mes_referencia', primeiroDiaMesAtualISO()).maybeSingle(),
+      supabase.from('contas_pagar').select('*'),
     ])
 
     setProdutos((prods ?? []) as Produto[])
@@ -159,6 +163,7 @@ export default function DashboardPage() {
     setPedidos((peds ?? []) as Pedido[])
     setVendasCanal(agruparVendasCanal((vendasCanalData ?? []) as VendaMesCanal[]))
     setFechamentoAtual((fechamento ?? null) as FechamentoMensal | null)
+    setContasPagar((cts ?? []) as ContaPagar[])
     setLoading(false)
   }, [supabase])
 
@@ -274,8 +279,27 @@ export default function DashboardPage() {
       })
     }
 
+    const contasVencidas = contasPagar.filter((c) => statusContaPagar(c) === 'vencido')
+    const contasVencendo = contasPagar.filter((c) => statusContaPagar(c) === 'vencendo')
+    if (contasVencidas.length > 0) {
+      const valor = contasVencidas.reduce((s, c) => s + saldoDevedor(c), 0)
+      alertas.push({
+        texto: `${contasVencidas.length} conta${contasVencidas.length === 1 ? '' : 's'} a pagar vencida${contasVencidas.length === 1 ? '' : 's'} (${formatCurrency(valor)})`,
+        href: '/dashboard/contas-a-pagar',
+        icon: AlertTriangle,
+      })
+    }
+    if (contasVencendo.length > 0) {
+      const valor = contasVencendo.reduce((s, c) => s + saldoDevedor(c), 0)
+      alertas.push({
+        texto: `${contasVencendo.length} conta${contasVencendo.length === 1 ? '' : 's'} a pagar vencendo nos próximos dias (${formatCurrency(valor)})`,
+        href: '/dashboard/contas-a-pagar',
+        icon: CalendarCheck,
+      })
+    }
+
     return { produtosEmEstoqueCount, criticosCount: criticos.length, capitalParado, pedidosHoje, alertas }
-  }, [produtos, estoque, pedidos, lancamentos, custoAtualPorProduto])
+  }, [produtos, estoque, pedidos, lancamentos, custoAtualPorProduto, contasPagar])
 
   const kpis = useMemo(() => {
     if (!config) return null
