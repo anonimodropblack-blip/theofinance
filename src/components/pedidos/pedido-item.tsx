@@ -13,6 +13,7 @@ import type { Pedido } from '@/types'
 type Props = {
   pedido: PedidoCompleto
   onAlterarStatus: (status: Pedido['status']) => void
+  onExcluir: () => void
 }
 
 const STATUS_LABEL: Record<Pedido['status'], string> = {
@@ -21,7 +22,7 @@ const STATUS_LABEL: Record<Pedido['status'], string> = {
   cancelado: 'Cancelado',
 }
 
-export function PedidoItem({ pedido: p, onAlterarStatus }: Props) {
+export function PedidoItem({ pedido: p, onAlterarStatus, onExcluir }: Props) {
   const foiRevertido = p.status !== 'confirmado'
   return (
     <div className={`px-4 py-3 text-sm flex items-center justify-between gap-3 ${foiRevertido ? 'opacity-60' : ''}`}>
@@ -54,8 +55,9 @@ export function PedidoItem({ pedido: p, onAlterarStatus }: Props) {
               <DropdownMenuItem onClick={() => onAlterarStatus('devolvido')}>Marcar como devolvido</DropdownMenuItem>
             )}
             {p.status !== 'cancelado' && (
-              <DropdownMenuItem onClick={() => onAlterarStatus('cancelado')} className="text-destructive">Marcar como cancelado</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onAlterarStatus('cancelado')}>Marcar como cancelado</DropdownMenuItem>
             )}
+            <DropdownMenuItem onClick={onExcluir} className="text-destructive">Excluir</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

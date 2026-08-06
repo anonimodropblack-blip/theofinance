@@ -26,10 +26,13 @@ import { Loader2 } from 'lucide-react'
 import { somarDias } from '@/lib/contas-pagar'
 import type { Lote } from '@/types'
 
+type LoteInicial = { id: string; codigo: string; fornecedor: string; valorTotal: number }
+
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   lotes: Lote[]
+  loteInicial?: LoteInicial | null
   onSaved: () => void
 }
 
@@ -37,7 +40,7 @@ function hojeISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Props) {
+export function NovaContaPagarDialog({ open, onOpenChange, lotes, loteInicial, onSaved }: Props) {
   const [supabase] = useState(() => createClient())
   const [descricao, setDescricao] = useState('')
   const [fornecedor, setFornecedor] = useState('')
@@ -55,10 +58,10 @@ export function NovaContaPagarDialog({ open, onOpenChange, lotes, onSaved }: Pro
 
   useEffect(() => {
     if (!open) return
-    setDescricao('')
-    setFornecedor('')
-    setLoteId('')
-    setValorTotal('')
+    setDescricao(loteInicial ? `Pedido ${loteInicial.codigo}` : '')
+    setFornecedor(loteInicial?.fornecedor ?? '')
+    setLoteId(loteInicial?.id ?? '')
+    setValorTotal(loteInicial ? String(loteInicial.valorTotal) : '')
     setDataCompra(hojeISO())
     setModoPrazo('dias')
     setPrazoDias('30')

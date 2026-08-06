@@ -21,10 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ArrowLeft, Copy, Loader2, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Copy, Loader2, ClipboardList, ShoppingBag } from 'lucide-react'
 import { toast } from 'sonner'
 import { calcularMediaDiaria, calcularSugestaoPedido, ultimoPrecoCompra } from '@/lib/reposicao'
 import { type LoteItemComLote } from '@/lib/custo-real'
+import { NovaContaPagarDialog } from '@/components/financeiro/nova-conta-pagar-dialog'
 import type { Configuracao, Estoque, FechamentoMensalProduto, LocalEstoque, Lote, Produto } from '@/types'
 
 function formatCurrency(v: number) {
@@ -57,6 +58,9 @@ export default function SugestaoPedidoPage() {
   const [plataforma, setPlataforma] = useState('')
   const [quantidades, setQuantidades] = useState<Record<string, string>>({})
   const [precos, setPrecos] = useState<Record<string, string>>({})
+  const [fazendoPedido, setFazendoPedido] = useState(false)
+  const [loteCriado, setLoteCriado] = useState<Lote | null>(null)
+  const [contaPagarDialogOpen, setContaPagarDialogOpen] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -114,16 +118,20 @@ export default function SugestaoPedidoPage() {
 
   const totalGeral = linhas.reduce((s, l) => s + quantidadeDe(l.produto.id, l.sugestaoBase) * precoDe(l.produto.id, l.precoUltimo), 0)
 
-  async function copiarPedido() {
-    const itensParaPedido = linhas
+  function itensParaPedido() {
+    return linhas
       .map((l) => ({
+        produtoId: l.produto.id,
         nome: l.produto.nome,
         quantidade: quantidadeDe(l.produto.id, l.sugestaoBase),
         preco: precoDe(l.produto.id, l.precoUltimo),
       }))
       .filter((l) => l.quantidade > 0)
+  }
 
-    if (itensParaPedido.length === 0) {
+  async function copiarPedido() {
+    const itens = itensParaPedido()
+    if (itens.length === 0) {
       toast.error('Nenhum produto com quantidade pra pedir.')
       return
     }
@@ -132,11 +140,11 @@ export default function SugestaoPedidoPage() {
     if (plataforma) linhasTexto.push(`Plataforma: ${plataforma}`)
     if (fornecedorFiltro) linhasTexto.push(`Fornecedor: ${fornecedorFiltro}`)
     linhasTexto.push('')
-    for (const item of itensParaPedido) {
+    for (const item of itens) {
       linhasTexto.push(`${item.nome} - ${item.quantidade} - ${formatCurrency(item.preco)}`)
     }
     linhasTexto.push('')
-    const total = itensParaPedido.reduce((s, i) => s + i.quantidade * i.preco, 0)
+    const total = itens.reduce((s, i) => s + i.quantidade * i.preco, 0)
     linhasTexto.push(`Total: ${formatCurrency(total)}`)
 
     try {
@@ -145,6 +153,53 @@ export default function SugestaoPedidoPage() {
     } catch {
       toast.error('Não deu pra copiar automaticamente. Selecione e copie o texto manualmente.')
     }
+  }
+
+  async function fazerPedido() {
+    if (!fornecedorFiltro) {
+      toast.error('Selecione um fornecedor antes de fazer o pedido.')
+      return
+    }
+    const itens = itensParaPedido()
+    if (itens.length === 0) {
+      toast.error('Nenhum produto com quantidade pra pedir.')
+      return
+    }
+
+    setFazendoPedido(true)
+
+    const { count } = await supabase.from('lotes').select('*', { count: 'exact', head: true })
+    const codigo = `Lote ${String((count ?? 0) + 1).padStart(3, '0')}`
+
+    const { data: lote, error: erroLote } = await supabase
+      .from('lotes')
+      .insert({ codigo, fornecedor: fornecedorFiltro, data: new Date().toISOString().slice(0, 10), estoque_confirmado: false })
+      .select()
+      .single()
+
+    if (erroLote || !lote) {
+      setFazendoPedido(false)
+      toast.error('Erro ao criar o lote desse pedido.')
+      return
+    }
+
+    const { error: erroItens } = await supabase.from('lote_itens').insert(
+      itens.map((i) => ({
+        lote_id: lote.id,
+        produto_id: i.produtoId,
+        quantidade: i.quantidade,
+        custo_unitario: i.preco,
+      }))
+    )
+    setFazendoPedido(false)
+    if (erroItens) {
+      toast.error('Lote foi criado, mas não deu pra salvar os produtos. Confira em Lotes.')
+      return
+    }
+
+    toast.success(`${codigo} criado — o estoque entra automaticamente quando a conta a pagar for quitada.`)
+    setLoteCriado(lote as Lote)
+    setContaPagarDialogOpen(true)
   }
 
   if (loading) {
@@ -204,11 +259,20 @@ export default function SugestaoPedidoPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button type="button" className="ml-auto" onClick={copiarPedido}>
-          <Copy className="h-4 w-4" />
-          Copiar pedido
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={copiarPedido}>
+            <Copy className="h-4 w-4" />
+            Copiar pedido
+          </Button>
+          <Button type="button" onClick={fazerPedido} disabled={fazendoPedido}>
+            {fazendoPedido ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+            Fazer Pedido
+          </Button>
+        </div>
       </div>
+      <p className="text-xs text-muted-foreground -mt-3">
+        &quot;Fazer Pedido&quot; cria o lote (sem entrar estoque ainda) e abre o registro em Contas a Pagar — o estoque entra sozinho quando você marcar como pago.
+      </p>
 
       <div className="rounded-lg border border-border overflow-x-auto">
         {linhas.length === 0 ? (
@@ -273,6 +337,14 @@ export default function SugestaoPedidoPage() {
           <div className="text-xl font-semibold">{formatCurrency(totalGeral)}</div>
         </div>
       </div>
+
+      <NovaContaPagarDialog
+        open={contaPagarDialogOpen}
+        onOpenChange={setContaPagarDialogOpen}
+        lotes={loteCriado ? [loteCriado] : []}
+        loteInicial={loteCriado ? { id: loteCriado.id, codigo: loteCriado.codigo, fornecedor: loteCriado.fornecedor, valorTotal: totalGeral } : null}
+        onSaved={() => { setLoteCriado(null); carregar() }}
+      />
     </div>
   )
 }

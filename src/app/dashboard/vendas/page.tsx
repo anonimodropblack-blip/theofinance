@@ -78,6 +78,29 @@ export default function VendasPage() {
     carregar()
   }
 
+  // Excluir de verdade (não é só mudar status): se a venda ainda estava confirmada,
+  // devolve estoque/vendas-do-mês antes de apagar a linha — mesma lógica de "sair de
+  // confirmado" acima, pra não perder o ajuste só porque pulou direto pra exclusão.
+  async function excluirPedido(pedido: PedidoCompleto) {
+    if (!window.confirm(`Excluir essa venda de "${pedido.produto?.nome}"? Essa ação não pode ser desfeita.`)) return
+    if (pedido.status === 'confirmado') {
+      try {
+        await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
+      } catch {
+        toast.error('Não deu pra devolver estoque/vendas. Venda não foi excluída.')
+        return
+      }
+    }
+    const { error } = await supabase.from('pedidos').delete().eq('id', pedido.id)
+    if (error) {
+      toast.error('Erro ao excluir venda.')
+      return
+    }
+    toast.success('Venda excluída')
+    carregar()
+  }
+
   const resumo = useMemo(() => {
     let vendidoQtd = 0, vendidoValor = 0
     let devolvidoQtd = 0, devolvidoValor = 0
@@ -139,7 +162,9 @@ export default function VendasPage() {
             <p className="text-sm">Nenhuma venda lançada ainda.</p>
           </div>
         ) : (
-          pedidos.map((p) => <PedidoItem key={p.id} pedido={p} onAlterarStatus={(status) => alterarStatusPedido(p, status)} />)
+          pedidos.map((p) => (
+            <PedidoItem key={p.id} pedido={p} onAlterarStatus={(status) => alterarStatusPedido(p, status)} onExcluir={() => excluirPedido(p)} />
+          ))
         )}
       </div>
 

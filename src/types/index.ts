@@ -86,6 +86,7 @@ export interface Lote {
   fornecedor: string
   data: string
   ativo: boolean
+  estoque_confirmado: boolean
   created_at: string
 }
 

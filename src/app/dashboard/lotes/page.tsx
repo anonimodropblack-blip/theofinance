@@ -14,7 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Loader2, Boxes, ClipboardList } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Plus, Loader2, Boxes, ClipboardList, MoreHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Lote } from '@/types'
 
@@ -60,6 +66,17 @@ export default function LotesPage() {
     if (error) { toast.error('Erro ao atualizar lote.'); return }
     setLotes((prev) => prev.map((x) => (x.id === l.id ? { ...x, ativo: !x.ativo } : x)))
     toast.success(l.ativo ? 'Lote arquivado' : 'Lote reativado')
+  }
+
+  async function excluirLote(l: LoteComTotal) {
+    if (!window.confirm(`Excluir "${l.codigo}" permanentemente? Isso NÃO desfaz o estoque/despesa que esse lote já gerou — se ele já foi recebido, prefira arquivar em vez de excluir.`)) return
+    const { error } = await supabase.from('lotes').delete().eq('id', l.id)
+    if (error) {
+      toast.error(`Não foi possível excluir "${l.codigo}" — provavelmente tem custo ou lançamento vinculado.`)
+      return
+    }
+    toast.success(`"${l.codigo}" excluído`)
+    carregar()
   }
 
   const lotesVisiveis = lotes.filter((l) => mostrarInativos || l.ativo)
@@ -132,12 +149,29 @@ export default function LotesPage() {
                       <Badge variant={l.ativo ? 'default' : 'secondary'}>{l.ativo ? 'Ativo' : 'Arquivado'}</Badge>
                     </button>
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      render={<Link href={`/dashboard/lotes/${l.id}/custos`} onClick={(e) => e.stopPropagation()}>Custos</Link>}
-                    />
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        render={<Link href={`/dashboard/lotes/${l.id}/custos`}>Custos</Link>}
+                      />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => alternarAtivoLote(l)}>
+                            {l.ativo ? 'Arquivar' : 'Reativar'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => excluirLote(l)} className="text-destructive">Excluir</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

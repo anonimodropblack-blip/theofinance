@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { formatCurrency, saldoDevedor } from '@/lib/contas-pagar'
+import { confirmarEstoqueSeQuitado } from '@/lib/pedido-compra'
 import type { ContaPagar } from '@/types'
 
 type Props = {
@@ -57,6 +58,9 @@ export function RegistrarPagamentoDialog({ open, onOpenChange, conta, onSaved }:
     if (error) {
       toast.error('Erro ao registrar pagamento.')
       return
+    }
+    if (novoValorPago >= conta.valor_total) {
+      await confirmarEstoqueSeQuitado(supabase, { ...conta, valor_pago: novoValorPago })
     }
     toast.success(novoValorPago >= conta.valor_total ? 'Conta quitada' : 'Pagamento parcial registrado')
     onOpenChange(false)

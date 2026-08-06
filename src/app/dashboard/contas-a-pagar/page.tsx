@@ -24,6 +24,7 @@ import {
   type StatusContaPagar,
 } from '@/lib/contas-pagar'
 import { COR_ALERTA, COR_NEGATIVO, COR_POSITIVO } from '@/lib/cores'
+import { confirmarEstoqueSeQuitado } from '@/lib/pedido-compra'
 import { toast } from 'sonner'
 import type { ContaPagar, Lote } from '@/types'
 
@@ -92,6 +93,7 @@ export default function ContasAPagarPage() {
       toast.error('Erro ao marcar como pago.')
       return
     }
+    await confirmarEstoqueSeQuitado(supabase, { ...conta, valor_pago: conta.valor_total })
     toast.success('Conta quitada')
     carregar()
   }
