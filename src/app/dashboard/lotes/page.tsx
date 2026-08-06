@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Plus, Loader2, Boxes } from 'lucide-react'
+import { Plus, Loader2, Boxes, ClipboardList } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Lote } from '@/types'
 
@@ -68,14 +68,25 @@ export default function LotesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Lotes</h1>
-        <Button
-          render={
-            <Link href="/dashboard/lotes/novo">
-              <Plus className="h-4 w-4" />
-              Novo Lote
-            </Link>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            render={
+              <Link href="/dashboard/lotes/sugestao">
+                <ClipboardList className="h-4 w-4" />
+                Sugestão de Pedido
+              </Link>
+            }
+          />
+          <Button
+            render={
+              <Link href="/dashboard/lotes/novo">
+                <Plus className="h-4 w-4" />
+                Novo Lote
+              </Link>
+            }
+          />
+        </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground">

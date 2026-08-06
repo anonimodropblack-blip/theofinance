@@ -16,15 +16,18 @@ export function calcularDiasEstoque(estoqueAtual: number, mediaDiaria: number | 
 }
 
 // Quanto pedir no próximo lote pra cobrir o prazo de reposição (tempo até o pedido
-// chegar) + a cobertura desejada depois que ele chegar, descontando o que já tem em estoque.
+// chegar) + a cobertura desejada depois que ele chegar, descontando o que já tem em
+// estoque — e comprando um pouco mais que isso (crescimentoPct) enquanto o objetivo
+// for crescer estoque/caixa, não só manter o nível atual.
 export function calcularSugestaoPedido(
   estoqueAtual: number,
   mediaDiaria: number | null,
   prazoReposicaoDias: number,
-  coberturaDesejadaDias: number
+  coberturaDesejadaDias: number,
+  crescimentoPct = 0
 ): number | null {
   if (mediaDiaria == null) return null
-  const sugestao = (prazoReposicaoDias + coberturaDesejadaDias) * mediaDiaria - estoqueAtual
+  const sugestao = ((prazoReposicaoDias + coberturaDesejadaDias) * mediaDiaria - estoqueAtual) * (1 + crescimentoPct / 100)
   return Math.max(0, Math.round(sugestao))
 }
 
@@ -45,6 +48,15 @@ export function calcularUltimaCompra(loteItens: LoteItemComLote[], produtoId: st
   const datas = loteItens.filter((i) => i.produto_id === produtoId).map((i) => i.lote.data)
   if (datas.length === 0) return null
   return datas.reduce((maisRecente, d) => (d > maisRecente ? d : maisRecente))
+}
+
+// Preço unitário pago no lote mais recente desse produto — usado como sugestão de preço
+// na Sugestão de Pedido, já que é o valor mais próximo do que o fornecedor cobra hoje.
+export function ultimoPrecoCompra(loteItens: LoteItemComLote[], produtoId: string): number | null {
+  const itensDoProduto = loteItens.filter((i) => i.produto_id === produtoId && i.custo_unitario != null)
+  if (itensDoProduto.length === 0) return null
+  const maisRecente = itensDoProduto.reduce((a, b) => (b.lote.data > a.lote.data ? b : a))
+  return maisRecente.custo_unitario
 }
 
 // Projeta a data em que o estoque cruza o prazo de reposição (quando precisa disparar uma

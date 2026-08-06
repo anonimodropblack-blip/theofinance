@@ -133,6 +133,7 @@ export interface Configuracao {
   gasto_ads_mensal: number
   prazo_reposicao_dias: number
   estoque_cobertura_dias: number
+  crescimento_estoque_pct: number
   updated_at: string
 }
 

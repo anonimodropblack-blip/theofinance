@@ -55,6 +55,7 @@ export default function ConfiguracoesPage() {
   const [gastoAdsMensal, setGastoAdsMensal] = useState('')
   const [prazoReposicaoDias, setPrazoReposicaoDias] = useState('')
   const [estoqueCoberturaDias, setEstoqueCoberturaDias] = useState('')
+  const [crescimentoEstoquePct, setCrescimentoEstoquePct] = useState('')
 
   const [novoLocalOpen, setNovoLocalOpen] = useState(false)
   const [editandoLocal, setEditandoLocal] = useState<LocalEstoque | null>(null)
@@ -93,6 +94,7 @@ export default function ConfiguracoesPage() {
     setCustoFixoMensal(cfg ? String(cfg.custo_fixo_mensal) : '')
     setGastoAdsMensal(cfg ? String(cfg.gasto_ads_mensal) : '')
     setPrazoReposicaoDias(cfg ? String(cfg.prazo_reposicao_dias) : '')
+    setCrescimentoEstoquePct(cfg ? String(cfg.crescimento_estoque_pct) : '')
     setEstoqueCoberturaDias(cfg ? String(cfg.estoque_cobertura_dias) : '')
     setLocais((locs ?? []) as LocalEstoque[])
     setCategorias((cats ?? []) as CategoriaCusto[])
@@ -125,6 +127,7 @@ export default function ConfiguracoesPage() {
         custo_fixo_mensal: Number(custoFixoMensal.replace(',', '.')) || 0,
         gasto_ads_mensal: Number(gastoAdsMensal.replace(',', '.')) || 0,
         prazo_reposicao_dias: Number(prazoReposicaoDias) || 0,
+        crescimento_estoque_pct: Number(crescimentoEstoquePct.replace(',', '.')) || 0,
         estoque_cobertura_dias: Number(estoqueCoberturaDias) || 0,
       })
       .eq('id', config.id)
@@ -574,7 +577,7 @@ export default function ConfiguracoesPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={salvarConfig} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 max-w-md">
+            <div className="grid grid-cols-3 gap-3 max-w-2xl">
               <div className="space-y-2">
                 <Label htmlFor="prazo_reposicao_dias">Prazo de produção + envio (dias)</Label>
                 <Input id="prazo_reposicao_dias" inputMode="numeric" placeholder="30" value={prazoReposicaoDias} onChange={(e) => setPrazoReposicaoDias(e.target.value)} />
@@ -583,9 +586,13 @@ export default function ConfiguracoesPage() {
                 <Label htmlFor="estoque_cobertura_dias">Cobertura desejada depois que chegar (dias)</Label>
                 <Input id="estoque_cobertura_dias" inputMode="numeric" placeholder="60" value={estoqueCoberturaDias} onChange={(e) => setEstoqueCoberturaDias(e.target.value)} />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="crescimento_estoque_pct">Crescimento de estoque (%)</Label>
+                <Input id="crescimento_estoque_pct" inputMode="decimal" placeholder="0" value={crescimentoEstoquePct} onChange={(e) => setCrescimentoEstoquePct(e.target.value)} />
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              A sugestão de compra usa a média real de vendas/dia (calculada a partir dos meses já fechados) pra cobrir o tempo até o próximo pedido chegar, mais os dias de estoque extra que você quer manter depois. Sem histórico de pelo menos um mês fechado pra um produto, a sugestão não aparece pra ele ainda.
+              A sugestão de compra usa a média real de vendas/dia (calculada a partir dos meses já fechados) pra cobrir o tempo até o próximo pedido chegar, mais os dias de estoque extra que você quer manter depois — e ainda soma esse % de crescimento em cima disso, pra comprar mais do que só repor enquanto o objetivo for aumentar o estoque. Sem histórico de pelo menos um mês fechado pra um produto, a sugestão não aparece pra ele ainda.
             </p>
             <Button type="submit" disabled={salvandoConfig}>
               {salvandoConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}

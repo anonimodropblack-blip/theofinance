@@ -767,7 +767,7 @@ export default function ProdutosPage() {
                 const corLinha = corMargem(margemPct, margemMinimaPercentual)
                 const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
                 const diasEstoque = calcularDiasEstoque(p.estoqueTotal, mediaDiaria)
-                const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0)
+                const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0, config?.crescimento_estoque_pct ?? 0)
                 const precisaAjuste = precoSugerido != null && precoEfetivo != null && Math.abs(precoSugerido - precoEfetivo) >= 0.01
                 const aumentando = precisaAjuste && precoSugerido! > precoEfetivo!
                 const variacaoPct = precisaAjuste && precoEfetivo ? ((precoSugerido! - precoEfetivo) / precoEfetivo) * 100 : null
