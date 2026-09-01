@@ -20,6 +20,7 @@ export type ProjecaoProduto = {
   margemPct: number | null
   lucroMes: number | null
   precoSugerido: number | null
+  precoMaximo: number | null
 }
 
 // Projeção de margem/lucro por produto pro marketplace selecionado. Usa o
@@ -36,7 +37,8 @@ export function calcularProjecao(
   impostoPercentual: number,
   margemMinimaPercentual: number,
   adsDiluidoPorUnidade = 0,
-  gastoAdsReal: number | null = null
+  gastoAdsReal: number | null = null,
+  margemMaximaPercentual: number | null = null
 ): ProjecaoProduto {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
@@ -57,7 +59,7 @@ export function calcularProjecao(
       valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
       valorAds: null, usandoAdsDiluido, usandoAdsReal: false,
       pesoFaltando: false, semFaixaPreco: false,
-      lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null,
+      lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null, precoMaximo: null,
     }
   }
 
@@ -70,6 +72,7 @@ export function calcularProjecao(
     faixasPreco,
     impostoPercentual,
     margemMinimaPercentual,
+    margemMaximaPercentual,
     adsModo: adsModoEfetivo,
     adsValor: adsValorEfetivo,
   })
@@ -100,6 +103,7 @@ export function calcularProjecao(
     margemPct: margem * 100,
     lucroMes,
     precoSugerido: r.precoSugerido,
+    precoMaximo: r.precoMaximo,
   }
 }
 

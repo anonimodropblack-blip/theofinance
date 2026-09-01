@@ -742,6 +742,7 @@ export default function ProdutosPage() {
                 <TableHead className="text-right whitespace-nowrap">Dias de Estoque</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Sugestão Próximo Pedido</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Revenda</TableHead>
+                <TableHead className="text-right whitespace-nowrap">Preço Mín. / Máx.</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Comissão</TableHead>
                 <TableHead className="text-right whitespace-nowrap">Imposto</TableHead>
                 <TableHead className="text-right whitespace-nowrap">{labelColunaExtra}</TableHead>
@@ -766,7 +767,7 @@ export default function ProdutosPage() {
                 const precoEfetivo = precoEfetivoDe(p)
                 const temExcecaoCanal = precoEfetivo !== p.preco_venda
                 const produtoEfetivo = temExcecaoCanal ? { ...p, preco_venda: precoEfetivo } : p
-                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, usandoAdsReal, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, usandoAdsReal, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido, precoMaximo } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null, margemMaximaPercentual)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const corLinha = corMargem(margemPct, margemMinimaPercentual, margemMaximaPercentual)
                 const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
@@ -852,6 +853,11 @@ export default function ProdutosPage() {
                         }}
                       />
                     </span>
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap text-muted-foreground text-xs">
+                    {precoSugerido != null ? formatCurrency(precoSugerido) : '—'}
+                    {' – '}
+                    {precoMaximo != null ? formatCurrency(precoMaximo) : 'sem teto'}
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorComissao)} <span className="text-xs">({formatPct(taxaPct)})</span>

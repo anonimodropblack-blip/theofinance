@@ -172,6 +172,7 @@ export default function PrecificacaoPage() {
     faixasPreco,
     impostoPercentual: config?.imposto_percentual ?? 0,
     margemMinimaPercentual: config?.margem_minima_percentual ?? 0,
+    margemMaximaPercentual: config?.margem_maxima_percentual ?? null,
     adsModo: adsModoEfetivo,
     adsValor: adsValorEfetivo,
   })
@@ -344,11 +345,19 @@ export default function PrecificacaoPage() {
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Lucro</span>
-              <span className={`font-medium ${corMargem(r.margem * 100, config?.margem_minima_percentual ?? 0)}`}>{formatCurrency(r.lucro)}</span>
+              <span className={`font-medium ${corMargem(r.margem * 100, config?.margem_minima_percentual ?? 0, config?.margem_maxima_percentual ?? null)}`}>{formatCurrency(r.lucro)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Margem</span>
-              <span className={`font-medium ${corMargem(r.margem * 100, config?.margem_minima_percentual ?? 0)}`}>{formatPct(r.margem * 100)}</span>
+              <span className={`font-medium ${corMargem(r.margem * 100, config?.margem_minima_percentual ?? 0, config?.margem_maxima_percentual ?? null)}`}>{formatPct(r.margem * 100)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm pt-1.5 mt-0.5 border-t border-border">
+              <span className="text-muted-foreground">Faixa de Preço Saudável</span>
+              <span className={`font-medium ${COR_FATURAMENTO}`}>
+                {r.precoSugerido != null ? formatCurrency(r.precoSugerido) : '—'}
+                {' – '}
+                {r.precoMaximo != null ? formatCurrency(r.precoMaximo) : 'sem teto'}
+              </span>
             </div>
           </div>
 
