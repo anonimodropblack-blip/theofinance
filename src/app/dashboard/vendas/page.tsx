@@ -58,10 +58,10 @@ export default function VendasPage() {
     try {
       if (eraConfirmado && !ficaConfirmado) {
         await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
-        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade, -(pedido.gasto_ads ?? 0))
       } else if (!eraConfirmado && ficaConfirmado) {
         await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
-        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade, pedido.gasto_ads ?? 0)
       }
     } catch {
       toast.error('Não deu pra ajustar estoque/vendas. Status não foi alterado.')
@@ -86,7 +86,7 @@ export default function VendasPage() {
     if (pedido.status === 'confirmado') {
       try {
         await ajustarEstoque(supabase, pedido.produto_id, pedido.local_id, pedido.quantidade)
-        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade)
+        await somarVendaMesCanal(supabase, pedido.produto_id, pedido.local_id, -pedido.quantidade, -(pedido.gasto_ads ?? 0))
       } catch {
         toast.error('Não deu pra devolver estoque/vendas. Venda não foi excluída.')
         return

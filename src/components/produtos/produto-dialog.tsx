@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { FabricanteInput } from './fabricante-input'
 import { MaisOpcoes } from '@/components/ui/mais-opcoes'
+import type { DadosVendaCanal } from '@/lib/vendas-canal'
 import type { Fabricante, LocalEstoque, Produto, TipoProduto, UnidadeEmbalagem } from '@/types'
 
 const TIPOS_PRODUTO: TipoProduto[] = ['Cápsula', 'Pó', 'Mastigável', 'Líquido', 'Chá', 'Softgel']
@@ -33,7 +34,7 @@ type Props = {
   onOpenChange: (open: boolean) => void
   produto: Produto | null
   locaisMarketplace: LocalEstoque[]
-  vendasCanalProduto: Record<string, number>
+  vendasCanalProduto: Record<string, DadosVendaCanal>
   onSaved: () => void
 }
 
@@ -70,7 +71,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
     setQtdMinima(produto?.qtd_minima != null ? String(produto.qtd_minima) : '')
     setPrecoCustoUnitario(produto?.preco_custo_unitario != null ? String(produto.preco_custo_unitario) : '')
     setVendasPorCanal(
-      Object.fromEntries(locaisMarketplace.map((l) => [l.id, String(vendasCanalProduto[l.id] ?? '')]))
+      Object.fromEntries(locaisMarketplace.map((l) => [l.id, String(vendasCanalProduto[l.id]?.quantidade ?? '')]))
     )
     setPesoGramas(produto?.peso_gramas != null ? String(produto.peso_gramas) : '')
   }, [open, produto, locaisMarketplace, vendasCanalProduto, supabase])
@@ -110,10 +111,17 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
       return
     }
 
+    // Preserva o gasto_ads já acumulado por venda real (somarVendaMesCanal) em cada canal —
+    // editar aqui só a quantidade estimada não pode apagar o gasto real registrado nas vendas.
     await supabase.from('vendas_mes_canal').delete().eq('produto_id', salvo.id)
     const linhasVendas = Object.entries(vendasPorCanal)
-      .map(([localId, v]) => ({ produto_id: salvo.id, local_id: localId, quantidade: Number(v) || 0 }))
-      .filter((l) => l.quantidade > 0)
+      .map(([localId, v]) => ({
+        produto_id: salvo.id,
+        local_id: localId,
+        quantidade: Number(v) || 0,
+        gasto_ads: vendasCanalProduto[localId]?.gastoAds ?? 0,
+      }))
+      .filter((l) => l.quantidade > 0 || l.gasto_ads > 0)
     if (linhasVendas.length > 0) {
       await supabase.from('vendas_mes_canal').insert(linhasVendas)
     }
@@ -133,7 +141,7 @@ export function ProdutoDialog({ open, onOpenChange, produto, locaisMarketplace, 
       produto?.qtd_minima != null ||
       produto?.preco_custo_unitario != null ||
       produto?.peso_gramas != null ||
-      Object.values(vendasCanalProduto).some((v) => v > 0)
+      Object.values(vendasCanalProduto).some((v) => v.quantidade > 0)
   )
 
   return (

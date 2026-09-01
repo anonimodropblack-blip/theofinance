@@ -8,14 +8,17 @@ export const COR_POSITIVO = 'text-emerald-600 dark:text-emerald-400'
 export const COR_ALERTA = 'text-amber-600 dark:text-amber-500'
 export const COR_NEGATIVO = 'text-destructive'
 
-// margemPct e margemMinimaPct na mesma escala (0-100). Vermelho é só prejuízo real (número
-// negativo) — margem positiva mas abaixo do mínimo saudável fica amarela, não vermelha.
+// margemPct, margemMinimaPct e margemMaximaPct na mesma escala (0-100). Vermelho é só
+// prejuízo real (número negativo) — margem positiva mas fora da faixa saudável (abaixo do
+// mínimo ou acima do máximo configurado) fica amarela, não vermelha. margemMaximaPct é
+// opcional: sem teto configurado, margem alta não gera alerta.
 // Usar essa mesma cor tanto na Margem % quanto no Lucro daquele produto/contexto — os dois
 // andam juntos.
-export function corMargem(margemPct: number | null, margemMinimaPct: number): string {
+export function corMargem(margemPct: number | null, margemMinimaPct: number, margemMaximaPct?: number | null): string {
   if (margemPct == null) return ''
   if (margemPct < 0) return COR_NEGATIVO
   if (margemPct < margemMinimaPct) return COR_ALERTA
+  if (margemMaximaPct != null && margemPct > margemMaximaPct) return COR_ALERTA
   return COR_POSITIVO
 }
 

@@ -65,11 +65,12 @@ type ItemPedido = {
   localId: string
   quantidade: number
   precoUnitario: string
+  gastoAds: string
   erros: Erros
 }
 
 function novoItem(localId = ''): ItemPedido {
-  return { uid: Math.random().toString(36).slice(2), produto: null, localId, quantidade: 1, precoUnitario: '', erros: {} }
+  return { uid: Math.random().toString(36).slice(2), produto: null, localId, quantidade: 1, precoUnitario: '', gastoAds: '', erros: {} }
 }
 
 function hojeISO() {
@@ -278,11 +279,13 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
     setSalvando(true)
     for (const it of validados) {
       const preco = Number(it.precoUnitario.replace(',', '.'))
+      const gastoAds = it.gastoAds.trim() === '' ? null : Number(it.gastoAds.replace(',', '.')) || 0
       const { error } = await supabase.from('pedidos').insert({
         produto_id: it.produto!.id,
         local_id: it.localId,
         quantidade: it.quantidade,
         preco_unitario: preco,
+        gasto_ads: gastoAds,
         data,
         observacao: observacao.trim() || null,
       })
@@ -293,7 +296,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
       }
       try {
         await ajustarEstoque(supabase, it.produto!.id, it.localId, -it.quantidade)
-        await somarVendaMesCanal(supabase, it.produto!.id, it.localId, it.quantidade)
+        await somarVendaMesCanal(supabase, it.produto!.id, it.localId, it.quantidade, gastoAds ?? 0)
       } catch {
         toast.error(`Venda de "${it.produto!.nome}" foi salva, mas não deu pra atualizar estoque/vendas. Confira manualmente.`)
         setSalvando(false)
@@ -389,7 +392,7 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
                   {item.erros.produto && <p className="text-xs text-destructive">{item.erros.produto}</p>}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label className="flex items-center gap-1 text-[13px]">
                       <Store className="h-3 w-3" /> Canal
@@ -458,6 +461,21 @@ export function NovoPedidoDialog({ open, onOpenChange, produtos, locais, estoque
                       />
                     </div>
                     {item.erros.preco && <p className="text-xs text-destructive">{item.erros.preco}</p>}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="flex items-center gap-1 text-[13px]">Gasto c/ Ads (opcional)</Label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">R$</span>
+                      <Input
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        value={item.gastoAds}
+                        onChange={(e) => atualizarItem(item.uid, { gastoAds: e.target.value })}
+                        className="pl-9"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Quanto gastou de verdade em anúncios pra fazer essa venda — usado pra calcular se deu lucro de fato em Produtos/Dashboard.</p>
                   </div>
                 </div>
 

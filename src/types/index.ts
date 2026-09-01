@@ -130,6 +130,7 @@ export interface Configuracao {
   id: string
   imposto_percentual: number
   margem_minima_percentual: number
+  margem_maxima_percentual: number | null
   custo_fixo_mensal: number
   gasto_ads_mensal: number
   prazo_reposicao_dias: number
@@ -190,6 +191,7 @@ export interface VendaMesCanal {
   produto_id: string
   local_id: string
   quantidade: number
+  gasto_ads: number
 }
 
 export interface Pedido {
@@ -198,6 +200,7 @@ export interface Pedido {
   local_id: string
   quantidade: number
   preco_unitario: number
+  gasto_ads: number | null
   status: 'confirmado' | 'devolvido' | 'cancelado'
   data: string
   observacao: string | null

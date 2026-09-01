@@ -23,7 +23,7 @@ import { calcularCustoRealPorProduto, type LoteCustoComCategoria, type LoteItemC
 import { COR_FATURAMENTO, corMargem } from '@/lib/cores'
 import { calcularAlocacaoCaixinhas, calcularProlaboreLiberado } from '@/lib/prolabore'
 import { primeiroDiaMesAtualISO, saldoPorConta, totalRetiradoNoPeriodo } from '@/lib/financeiro'
-import { agruparVendasCanal, totalVendasProduto } from '@/lib/vendas-canal'
+import { agruparVendasCanal, totalVendasProduto, type DadosVendaCanal, type VendasPorProdutoCanal } from '@/lib/vendas-canal'
 import { agruparPrecosPorLocal, precoVendaEfetivo, type PrecosPorProdutoCanal } from '@/lib/precos'
 import { LancamentoDialog } from '@/components/financeiro/lancamento-dialog'
 import { saldoDevedor, statusContaPagar } from '@/lib/contas-pagar'
@@ -104,7 +104,7 @@ export default function DashboardPage() {
   const [categoriasFinanceiras, setCategoriasFinanceiras] = useState<CategoriaFinanceira[]>([])
   const [lancamentos, setLancamentos] = useState<LancamentoFinanceiro[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [vendasCanal, setVendasCanal] = useState<Record<string, Record<string, number>>>({})
+  const [vendasCanal, setVendasCanal] = useState<VendasPorProdutoCanal>({})
   const [fechamentoAtual, setFechamentoAtual] = useState<FechamentoMensal | null>(null)
   const [contasPagar, setContasPagar] = useState<ContaPagar[]>([])
   const [faixasProlabore, setFaixasProlabore] = useState<ProlaboreFaixa[]>([])
@@ -222,15 +222,15 @@ export default function DashboardPage() {
   // vendas/mês (por produto) só àquele canal — usadas em todo cálculo que hoje soma
   // todos os canais junto, pra deixar de ficar sempre "genericão geral".
   const vendasCanalDoProduto = useCallback(
-    (produtoId: string): Record<string, number> => {
+    (produtoId: string): Record<string, DadosVendaCanal> => {
       const todos = vendasCanal[produtoId] ?? {}
       if (!canalFiltroId) return todos
-      return { [canalFiltroId]: todos[canalFiltroId] ?? 0 }
+      return { [canalFiltroId]: todos[canalFiltroId] ?? { quantidade: 0, gastoAds: 0 } }
     },
     [vendasCanal, canalFiltroId]
   )
   const vendasMesProdutoFiltrado = useCallback(
-    (produtoId: string): number => canalFiltroId ? (vendasCanal[produtoId]?.[canalFiltroId] ?? 0) : totalVendasProduto(vendasCanal, produtoId),
+    (produtoId: string): number => canalFiltroId ? (vendasCanal[produtoId]?.[canalFiltroId]?.quantidade ?? 0) : totalVendasProduto(vendasCanal, produtoId),
     [vendasCanal, canalFiltroId]
   )
 
@@ -238,7 +238,8 @@ export default function DashboardPage() {
     const doPeriodo = pedidos.filter((p) => p.data >= periodoInicio && p.data <= periodoFim && (!canalFiltroId || p.local_id === canalFiltroId))
     const faturamentoReal = doPeriodo.reduce((s, p) => s + p.quantidade * p.preco_unitario, 0)
     const custoReal = doPeriodo.reduce((s, p) => s + p.quantidade * (custoAtualPorProduto.get(p.produto_id) ?? 0), 0)
-    return { faturamentoReal, custoReal, lucroReal: faturamentoReal - custoReal }
+    const gastoAdsReal = doPeriodo.reduce((s, p) => s + (p.gasto_ads ?? 0), 0)
+    return { faturamentoReal, custoReal, gastoAdsReal, lucroReal: faturamentoReal - custoReal - gastoAdsReal }
   }, [pedidos, custoAtualPorProduto, periodoInicio, periodoFim, canalFiltroId])
 
   const operacao = useMemo(() => {
@@ -580,10 +581,11 @@ export default function DashboardPage() {
     const porCanal = new Map<string, { vendasQtd: number; faturamento: number; lucro: number }>()
     for (const p of produtos) {
       const custoReal = custoRealPorProduto[p.id] ?? null
-      for (const [localId, qtd] of Object.entries(vendasCanal[p.id] ?? {})) {
+      for (const [localId, dados] of Object.entries(vendasCanal[p.id] ?? {})) {
+        const qtd = dados.quantidade
         if (qtd <= 0) continue
         const local = locaisPorId.get(localId) ?? null
-        const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+        const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dados.gastoAds)
         const atual = porCanal.get(localId) ?? { vendasQtd: 0, faturamento: 0, lucro: 0 }
         atual.vendasQtd += qtd
         atual.faturamento += (p.preco_venda ?? 0) * qtd
@@ -772,7 +774,7 @@ export default function DashboardPage() {
                   <KpiIcon icon={TrendingUp} tone="green" /> Lucro Líquido Projetado
                 </CardTitle>
               </CardHeader>
-              <CardContent className={`relative text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+              <CardContent className={`relative text-3xl font-semibold tracking-tight ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0, config?.margem_maxima_percentual ?? null) : ''}`}>
                 {formatCurrency(kpis.lucroProjetado)}
               </CardContent>
             </Card>
@@ -829,7 +831,7 @@ export default function DashboardPage() {
             A partir das vendas lançadas nesse período — diferente da projeção acima, que usa o ritmo atual de vendas.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Link href="/dashboard/vendas" className="block">
             <Card size="sm" className="transition-colors hover:border-primary/30">
               <CardHeader>
@@ -838,6 +840,17 @@ export default function DashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-2xl font-semibold tracking-tight">{formatCurrency(vendasReaisMes.faturamentoReal)}</CardContent>
+            </Card>
+          </Link>
+
+          <Link href="/dashboard/vendas" className="block">
+            <Card size="sm" className="transition-colors hover:border-primary/30">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-muted-foreground text-xs font-normal">
+                  <KpiIcon icon={Megaphone} tone="amber" /> Gasto com Ads Real
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-2xl font-semibold tracking-tight">{formatCurrency(vendasReaisMes.gastoAdsReal)}</CardContent>
             </Card>
           </Link>
 
@@ -967,7 +980,7 @@ export default function DashboardPage() {
                 <KpiIcon icon={Percent} tone="green" /> Margem Média
               </CardTitle>
             </CardHeader>
-            <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0) : ''}`}>
+            <CardContent className={`text-lg font-semibold ${kpis.temEstoqueComMargem ? corMargem(kpis.margemMedia * 100, config?.margem_minima_percentual ?? 0, config?.margem_maxima_percentual ?? null) : ''}`}>
               {kpis.temEstoqueComMargem ? formatPct(kpis.margemMedia * 100) : '—'}
             </CardContent>
           </Card>
@@ -1254,7 +1267,7 @@ export default function DashboardPage() {
           ) : (
             <div className="divide-y divide-border">
               {relatorioProdutos.map(({ produto, margemPct, lucroMes, vendasQtd }) => {
-                const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0)
+                const corMargemProduto = corMargem(margemPct, config?.margem_minima_percentual ?? 0, config?.margem_maxima_percentual ?? null)
                 return (
                   <Link
                     key={produto.id}

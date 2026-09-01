@@ -31,6 +31,9 @@ export function PedidoItem({ pedido: p, onAlterarStatus, onExcluir }: Props) {
         <Badge variant="outline" className="shrink-0">{p.local?.nome}</Badge>
         <span className={`font-medium truncate ${foiRevertido ? 'line-through' : ''}`}>{p.produto?.nome}</span>
         <span className="text-xs text-muted-foreground shrink-0">{p.quantidade} un. × {formatCurrency(p.preco_unitario)}</span>
+        {p.gasto_ads != null && (
+          <span className="text-xs text-muted-foreground shrink-0" title="Gasto real com Ads pra essa venda">Ads: {formatCurrency(p.gasto_ads)}</span>
+        )}
         {foiRevertido && (
           <Badge variant={p.status === 'devolvido' ? 'secondary' : 'destructive'} className="shrink-0">
             {STATUS_LABEL[p.status]}

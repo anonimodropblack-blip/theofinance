@@ -1,5 +1,6 @@
 import { calcularPrecificacao } from '@/lib/precificacao'
 import type { CustoRealProduto } from '@/lib/custo-real'
+import type { DadosVendaCanal } from '@/lib/vendas-canal'
 import type { FaixaLogisticaFba, FaixaTaxaMarketplacePreco, LocalEstoque, Produto } from '@/types'
 
 export type ProjecaoProduto = {
@@ -12,6 +13,7 @@ export type ProjecaoProduto = {
   labelExtra: 'Logística FBA' | 'Taxa Fixa' | null
   valorAds: number | null
   usandoAdsDiluido: boolean
+  usandoAdsReal: boolean
   pesoFaltando: boolean
   semFaixaPreco: boolean
   lucroPorUnidade: number | null
@@ -33,7 +35,8 @@ export function calcularProjecao(
   faixasPreco: FaixaTaxaMarketplacePreco[],
   impostoPercentual: number,
   margemMinimaPercentual: number,
-  adsDiluidoPorUnidade = 0
+  adsDiluidoPorUnidade = 0,
+  gastoAdsReal: number | null = null
 ): ProjecaoProduto {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
     ? p.preco_custo_unitario * p.qtd_minima
@@ -52,7 +55,7 @@ export function calcularProjecao(
     return {
       precoTotal, usandoCustoReal,
       valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
-      valorAds: null, usandoAdsDiluido,
+      valorAds: null, usandoAdsDiluido, usandoAdsReal: false,
       pesoFaltando: false, semFaixaPreco: false,
       lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null,
     }
@@ -73,7 +76,16 @@ export function calcularProjecao(
 
   const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
   const valorExtra = r.usaTarifaFba ? r.valorTarifaFba : r.usaTaxaPorFaixa ? r.valorFixoFaixa : null
-  const lucroMes = r.lucro * quantidadeVendidaCanal
+
+  // Gasto real de ads acumulado em vendas_mes_canal (vindo dos pedidos confirmados)
+  // substitui a estimativa (ads_modo/ads_valor ou diluído) no lucro/margem — a
+  // estimativa é só previsão de precificação, o real é o que efetivamente saiu do
+  // bolso pra vender.
+  const usandoAdsReal = gastoAdsReal != null && quantidadeVendidaCanal > 0
+  const valorAdsPorUnidade = usandoAdsReal ? gastoAdsReal / quantidadeVendidaCanal : r.valorAds
+  const lucroPorUnidade = r.lucro + (r.valorAds - valorAdsPorUnidade)
+  const margem = p.preco_venda > 0 ? lucroPorUnidade / p.preco_venda : 0
+  const lucroMes = lucroPorUnidade * quantidadeVendidaCanal
 
   return {
     precoTotal, usandoCustoReal,
@@ -81,11 +93,11 @@ export function calcularProjecao(
     taxaPct: r.taxaPct * 100,
     valorImposto: r.valorImposto,
     valorExtra, labelExtra,
-    valorAds: r.valorAds, usandoAdsDiluido,
+    valorAds: valorAdsPorUnidade, usandoAdsDiluido, usandoAdsReal,
     pesoFaltando: r.pesoFaltando,
     semFaixaPreco: r.semFaixaPreco,
-    lucroPorUnidade: r.lucro,
-    margemPct: r.margem * 100,
+    lucroPorUnidade,
+    margemPct: margem * 100,
     lucroMes,
     precoSugerido: r.precoSugerido,
   }
@@ -104,7 +116,7 @@ export type ProjecaoTotalProduto = {
 export function calcularProjecaoTotal(
   p: Produto,
   custoReal: CustoRealProduto | null,
-  vendasCanalProduto: Record<string, number>,
+  vendasCanalProduto: Record<string, DadosVendaCanal>,
   locaisPorId: Map<string, LocalEstoque>,
   faixasFba: FaixaLogisticaFba[],
   faixasPreco: FaixaTaxaMarketplacePreco[],
@@ -116,12 +128,13 @@ export function calcularProjecaoTotal(
   let lucroMes = 0
   let vendasQtd = 0
   let faturamento = 0
-  for (const [localId, qtd] of Object.entries(vendasCanalProduto)) {
+  for (const [localId, dados] of Object.entries(vendasCanalProduto)) {
+    const qtd = dados.quantidade
     if (qtd <= 0) continue
     const local = locaisPorId.get(localId) ?? null
     const precoEfetivo = precosPorCanal[localId] ?? p.preco_venda
     const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
-    const r = calcularProjecao(produtoEfetivo, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+    const r = calcularProjecao(produtoEfetivo, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dados.gastoAds)
     lucroMes += r.lucroMes ?? 0
     vendasQtd += qtd
     faturamento += (precoEfetivo ?? 0) * qtd

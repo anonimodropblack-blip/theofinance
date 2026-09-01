@@ -243,6 +243,7 @@ export default function ProdutosPage() {
 
   const impostoPercentual = config?.imposto_percentual ?? 0
   const margemMinimaPercentual = config?.margem_minima_percentual ?? 0
+  const margemMaximaPercentual = config?.margem_maxima_percentual ?? null
   const localSelecionado = locais.find((l) => l.id === localSelecionadoId) ?? null
   const totalVendasMes = produtos.reduce((s, p) => s + (p.status === 'ativo' ? totalVendasProduto(vendasCanal, p.id) : 0), 0)
   const adsDiluidoPorUnidade = totalVendasMes > 0 ? (config?.gasto_ads_mensal ?? 0) / totalVendasMes : 0
@@ -291,8 +292,9 @@ export default function ProdutosPage() {
       if (p.status !== 'ativo') continue
       const precoEfetivo = precoEfetivoDe(p)
       const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
-      const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
-      const projecao = calcularProjecao(produtoEfetivo, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const dadosCanal = vendasCanal[p.id]?.[localSelecionadoId]
+      const vendidoNesteCanal = dadosCanal?.quantidade ?? 0
+      const projecao = calcularProjecao(produtoEfetivo, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
       if (precoEfetivo != null) brutoTotal += precoEfetivo * p.estoqueTotal
@@ -309,8 +311,9 @@ export default function ProdutosPage() {
       if (precoEfetivo == null) return []
       const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
       const custoReal = custoRealPorProduto[p.id] ?? null
-      const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
-      const { precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+      const dadosCanal = vendasCanal[p.id]?.[localSelecionadoId]
+      const vendidoNesteCanal = dadosCanal?.quantidade ?? 0
+      const { precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
       if (precoSugerido == null || Math.abs(precoSugerido - precoEfetivo) < 0.01) return []
       return [{ produto: p, precoSugerido }]
     })
@@ -758,13 +761,14 @@ export default function ProdutosPage() {
             <TableBody>
               {filtrados.map((p, index) => {
                 const custoReal = custoRealPorProduto[p.id] ?? null
-                const vendidoNesteCanal = vendasCanal[p.id]?.[localSelecionadoId] ?? 0
+                const dadosCanal = vendasCanal[p.id]?.[localSelecionadoId]
+                const vendidoNesteCanal = dadosCanal?.quantidade ?? 0
                 const precoEfetivo = precoEfetivoDe(p)
                 const temExcecaoCanal = precoEfetivo !== p.preco_venda
                 const produtoEfetivo = temExcecaoCanal ? { ...p, preco_venda: precoEfetivo } : p
-                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, usandoAdsReal, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
-                const corLinha = corMargem(margemPct, margemMinimaPercentual)
+                const corLinha = corMargem(margemPct, margemMinimaPercentual, margemMaximaPercentual)
                 const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
                 const diasEstoque = calcularDiasEstoque(p.estoqueTotal, mediaDiaria)
                 const sugestaoPedido = calcularSugestaoPedido(p.estoqueTotal, mediaDiaria, config?.prazo_reposicao_dias ?? 0, config?.estoque_cobertura_dias ?? 0, config?.crescimento_estoque_pct ?? 0)
@@ -883,7 +887,9 @@ export default function ProdutosPage() {
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorAds)}
-                    {usandoAdsDiluido && (
+                    {usandoAdsReal ? (
+                      <span className="text-[10px] font-normal ml-1" title="Usando o gasto real com Ads registrado nas vendas desse canal, não a estimativa.">real</span>
+                    ) : usandoAdsDiluido && (
                       <span className="text-[10px] font-normal ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">dil.</span>
                     )}
                   </TableCell>
