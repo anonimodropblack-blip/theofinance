@@ -294,7 +294,7 @@ export default function ProdutosPage() {
       const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
       const dadosCanal = vendasCanal[p.id]?.[localSelecionadoId]
       const vendidoNesteCanal = dadosCanal?.quantidade ?? 0
-      const projecao = calcularProjecao(produtoEfetivo, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
+      const projecao = calcularProjecao(produtoEfetivo, custoRealPorProduto[p.id] ?? null, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (projecao.lucroMes != null) lucroMes += projecao.lucroMes
       if (projecao.lucroPorUnidade != null) lucroTotal += projecao.lucroPorUnidade * p.estoqueTotal
       if (precoEfetivo != null) brutoTotal += precoEfetivo * p.estoqueTotal
@@ -313,7 +313,7 @@ export default function ProdutosPage() {
       const custoReal = custoRealPorProduto[p.id] ?? null
       const dadosCanal = vendasCanal[p.id]?.[localSelecionadoId]
       const vendidoNesteCanal = dadosCanal?.quantidade ?? 0
-      const { precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null)
+      const { precoSugerido } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
       if (precoSugerido == null || Math.abs(precoSugerido - precoEfetivo) < 0.01) return []
       return [{ produto: p, precoSugerido }]
     })
@@ -769,7 +769,7 @@ export default function ProdutosPage() {
                 const precoEfetivo = precoEfetivoDe(p)
                 const temExcecaoCanal = precoEfetivo !== p.preco_venda
                 const produtoEfetivo = temExcecaoCanal ? { ...p, preco_venda: precoEfetivo } : p
-                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, usandoAdsReal, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido, precoMaximo, lucroNoPrecoMinimo, margemPctNoPrecoMinimo, lucroNoPrecoMaximo, margemPctNoPrecoMaximo } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dadosCanal?.gastoAds ?? null, margemMaximaPercentual)
+                const { usandoCustoReal, valorComissao, taxaPct, valorImposto, valorExtra, valorAds, usandoAdsDiluido, pesoFaltando, semFaixaPreco, lucroPorUnidade, margemPct, lucroMes, precoSugerido, precoMaximo, lucroNoPrecoMinimo, margemPctNoPrecoMinimo, lucroNoPrecoMaximo, margemPctNoPrecoMaximo } = calcularProjecao(produtoEfetivo, custoReal, localSelecionado, vendidoNesteCanal, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, margemMaximaPercentual)
                 const lucroTotal = lucroPorUnidade != null ? lucroPorUnidade * p.estoqueTotal : null
                 const corLinha = corMargem(margemPct, margemMinimaPercentual, margemMaximaPercentual)
                 const mediaDiaria = calcularMediaDiaria(fechamentosPorProduto[p.id] ?? [])
@@ -901,9 +901,7 @@ export default function ProdutosPage() {
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap text-muted-foreground">
                     {formatCurrency(valorAds)}
-                    {usandoAdsReal ? (
-                      <span className="text-[10px] font-normal ml-1" title="Usando o gasto real com Ads registrado nas vendas desse canal, não a estimativa.">real</span>
-                    ) : usandoAdsDiluido && (
+                    {usandoAdsDiluido && (
                       <span className="text-[10px] font-normal ml-1" title="Sem Ads manual cadastrado — usando o gasto mensal total diluído pelas vendas/mês de todos os produtos.">dil.</span>
                     )}
                   </TableCell>

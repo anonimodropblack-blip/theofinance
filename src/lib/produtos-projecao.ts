@@ -13,7 +13,6 @@ export type ProjecaoProduto = {
   labelExtra: 'Logística FBA' | 'Taxa Fixa' | null
   valorAds: number | null
   usandoAdsDiluido: boolean
-  usandoAdsReal: boolean
   pesoFaltando: boolean
   semFaixaPreco: boolean
   lucroPorUnidade: number | null
@@ -41,7 +40,6 @@ export function calcularProjecao(
   impostoPercentual: number,
   margemMinimaPercentual: number,
   adsDiluidoPorUnidade = 0,
-  gastoAdsReal: number | null = null,
   margemMaximaPercentual: number | null = null
 ): ProjecaoProduto {
   const precoTotal = p.preco_custo_unitario != null && p.qtd_minima != null
@@ -61,7 +59,7 @@ export function calcularProjecao(
     return {
       precoTotal, usandoCustoReal,
       valorComissao: null, taxaPct: null, valorImposto: null, valorExtra: null, labelExtra: null,
-      valorAds: null, usandoAdsDiluido, usandoAdsReal: false,
+      valorAds: null, usandoAdsDiluido,
       pesoFaltando: false, semFaixaPreco: false,
       lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null, precoMaximo: null,
       lucroNoPrecoMinimo: null, margemPctNoPrecoMinimo: null, lucroNoPrecoMaximo: null, margemPctNoPrecoMaximo: null,
@@ -85,13 +83,11 @@ export function calcularProjecao(
   const labelExtra = r.usaTarifaFba ? 'Logística FBA' : r.usaTaxaPorFaixa ? 'Taxa Fixa' : null
   const valorExtra = r.usaTarifaFba ? r.valorTarifaFba : r.usaTaxaPorFaixa ? r.valorFixoFaixa : null
 
-  // Gasto real de ads acumulado em vendas_mes_canal (vindo dos pedidos confirmados)
-  // substitui a estimativa (ads_modo/ads_valor ou diluído) no lucro/margem — a
-  // estimativa é só previsão de precificação, o real é o que efetivamente saiu do
-  // bolso pra vender.
-  const usandoAdsReal = gastoAdsReal != null && quantidadeVendidaCanal > 0
-  const valorAdsPorUnidade = usandoAdsReal ? gastoAdsReal / quantidadeVendidaCanal : r.valorAds
-  const lucroPorUnidade = r.lucro + (r.valorAds - valorAdsPorUnidade)
+  // Ads sempre pelo valor planejado/cadastrado (ads_modo/ads_valor, ou o rateio
+  // diluído quando o produto não tem Ads manual) — nunca pelo gasto real do mês,
+  // que pode estar zerado só porque ainda não foi lançado nenhum pedido com Ads
+  // registrado, o que inflaria a margem sem o custo ter deixado de existir.
+  const lucroPorUnidade = r.lucro
   const margem = p.preco_venda > 0 ? lucroPorUnidade / p.preco_venda : 0
   const lucroMes = lucroPorUnidade * quantidadeVendidaCanal
 
@@ -101,7 +97,7 @@ export function calcularProjecao(
     taxaPct: r.taxaPct * 100,
     valorImposto: r.valorImposto,
     valorExtra, labelExtra,
-    valorAds: valorAdsPorUnidade, usandoAdsDiluido, usandoAdsReal,
+    valorAds: r.valorAds, usandoAdsDiluido,
     pesoFaltando: r.pesoFaltando,
     semFaixaPreco: r.semFaixaPreco,
     lucroPorUnidade,
@@ -147,7 +143,7 @@ export function calcularProjecaoTotal(
     const local = locaisPorId.get(localId) ?? null
     const precoEfetivo = precosPorCanal[localId] ?? p.preco_venda
     const produtoEfetivo = precoEfetivo !== p.preco_venda ? { ...p, preco_venda: precoEfetivo } : p
-    const r = calcularProjecao(produtoEfetivo, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dados.gastoAds)
+    const r = calcularProjecao(produtoEfetivo, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
     lucroMes += r.lucroMes ?? 0
     vendasQtd += qtd
     faturamento += (precoEfetivo ?? 0) * qtd

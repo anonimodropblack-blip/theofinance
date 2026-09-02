@@ -585,7 +585,7 @@ export default function DashboardPage() {
         const qtd = dados.quantidade
         if (qtd <= 0) continue
         const local = locaisPorId.get(localId) ?? null
-        const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade, dados.gastoAds)
+        const r = calcularProjecao(p, custoReal, local, qtd, faixasFba, faixasPreco, impostoPercentual, margemMinimaPercentual, adsDiluidoPorUnidade)
         const atual = porCanal.get(localId) ?? { vendasQtd: 0, faturamento: 0, lucro: 0 }
         atual.vendasQtd += qtd
         atual.faturamento += (p.preco_venda ?? 0) * qtd
