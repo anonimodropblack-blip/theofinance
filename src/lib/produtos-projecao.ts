@@ -21,6 +21,10 @@ export type ProjecaoProduto = {
   lucroMes: number | null
   precoSugerido: number | null
   precoMaximo: number | null
+  lucroNoPrecoMinimo: number | null
+  margemPctNoPrecoMinimo: number | null
+  lucroNoPrecoMaximo: number | null
+  margemPctNoPrecoMaximo: number | null
 }
 
 // Projeção de margem/lucro por produto pro marketplace selecionado. Usa o
@@ -60,6 +64,7 @@ export function calcularProjecao(
       valorAds: null, usandoAdsDiluido, usandoAdsReal: false,
       pesoFaltando: false, semFaixaPreco: false,
       lucroPorUnidade: null, margemPct: null, lucroMes: null, precoSugerido: null, precoMaximo: null,
+      lucroNoPrecoMinimo: null, margemPctNoPrecoMinimo: null, lucroNoPrecoMaximo: null, margemPctNoPrecoMaximo: null,
     }
   }
 
@@ -104,6 +109,10 @@ export function calcularProjecao(
     lucroMes,
     precoSugerido: r.precoSugerido,
     precoMaximo: r.precoMaximo,
+    lucroNoPrecoMinimo: r.lucroNoPrecoMinimo,
+    margemPctNoPrecoMinimo: r.margemNoPrecoMinimo != null ? r.margemNoPrecoMinimo * 100 : null,
+    lucroNoPrecoMaximo: r.lucroNoPrecoMaximo,
+    margemPctNoPrecoMaximo: r.margemNoPrecoMaximo != null ? r.margemNoPrecoMaximo * 100 : null,
   }
 }
 

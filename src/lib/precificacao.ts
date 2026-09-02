@@ -18,6 +18,10 @@ export type ResultadoPrecificacao = {
   margemOk: boolean
   precoSugerido: number | null
   precoMaximo: number | null
+  lucroNoPrecoMinimo: number | null
+  margemNoPrecoMinimo: number | null
+  lucroNoPrecoMaximo: number | null
+  margemNoPrecoMaximo: number | null
 }
 
 // Cálculo de margem/lucro pra um produto + local de venda: comissão do
@@ -82,11 +86,41 @@ export function calcularPrecificacao(params: {
     ? Math.floor(((custoFixoTotal + valorTarifaFba + valorFixoFaixa + valorAdsFixo) / denominadorMax) * 100) / 100
     : null
 
+  // Lucro/margem reais no preço mínimo e no máximo sugeridos — recalcula taxa/tarifa
+  // nesse preço (não no preço atual) porque comissão por faixa e tarifa FBA por peso
+  // podem mudar de faixa dependendo do preço, então não dá pra só aplicar a margem
+  // configurada direto: o arredondamento de centavos no preço sugerido também desloca
+  // o resultado um pouquinho.
+  function lucroEMargemNoPreco(precoAlvo: number) {
+    const valorImpostoAlvo = precoAlvo * impostoPct
+    const faixaAlvo = usaTaxaPorFaixa && precoAlvo > 0
+      ? obterTaxaPorFaixa(precoAlvo, faixasPreco.filter((f) => f.local_id === local?.id && f.ativo))
+      : null
+    const taxaPctAlvo = usaTaxaPorFaixa ? (faixaAlvo?.taxaPercentual ?? 0) / 100 : (local?.taxa_marketplace ?? 0) / 100
+    const valorFixoFaixaAlvo = faixaAlvo?.valorFixo ?? 0
+    const valorTaxaAlvo = precoAlvo * taxaPctAlvo + valorFixoFaixaAlvo
+    const tarifaFbaAlvo = usaTarifaFba && pesoGramas != null && precoAlvo > 0
+      ? obterTarifaFba(pesoGramas, precoAlvo, faixasFba.filter((f) => f.local_id === local?.id && f.ativo))
+      : null
+    const valorTarifaFbaAlvo = tarifaFbaAlvo ?? 0
+    const valorAdsAlvo = precoAlvo * adsPct + valorAdsFixo
+    const lucroAlvo = precoAlvo - custoFixoTotal - valorImpostoAlvo - valorTaxaAlvo - valorTarifaFbaAlvo - valorAdsAlvo
+    const margemAlvo = precoAlvo > 0 ? lucroAlvo / precoAlvo : 0
+    return { lucro: lucroAlvo, margem: margemAlvo }
+  }
+
+  const noPrecoMinimo = precoSugerido != null ? lucroEMargemNoPreco(precoSugerido) : null
+  const noPrecoMaximo = precoMaximo != null ? lucroEMargemNoPreco(precoMaximo) : null
+
   return {
     custoFixoTotal, valorImposto, taxaPct,
     usaTarifaFba, pesoFaltando, valorTarifaFba,
     usaTaxaPorFaixa, semFaixaPreco, valorFixoFaixa,
     valorAds,
     lucro, margem, margemOk, precoSugerido, precoMaximo,
+    lucroNoPrecoMinimo: noPrecoMinimo?.lucro ?? null,
+    margemNoPrecoMinimo: noPrecoMinimo?.margem ?? null,
+    lucroNoPrecoMaximo: noPrecoMaximo?.lucro ?? null,
+    margemNoPrecoMaximo: noPrecoMaximo?.margem ?? null,
   }
 }

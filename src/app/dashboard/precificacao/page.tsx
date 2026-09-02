@@ -359,6 +359,22 @@ export default function PrecificacaoPage() {
                 {r.precoMaximo != null ? formatCurrency(r.precoMaximo) : 'sem teto'}
               </span>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Lucro/Margem no Mínimo</span>
+              <span className="font-medium">
+                {r.precoSugerido != null ? (
+                  <>{formatCurrency(r.lucroNoPrecoMinimo ?? 0)} <span className="text-xs text-muted-foreground">({formatPct((r.margemNoPrecoMinimo ?? 0) * 100)})</span></>
+                ) : '—'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Lucro/Margem no Máximo</span>
+              <span className="font-medium">
+                {r.precoMaximo != null ? (
+                  <>{formatCurrency(r.lucroNoPrecoMaximo ?? 0)} <span className="text-xs text-muted-foreground">({formatPct((r.margemNoPrecoMaximo ?? 0) * 100)})</span></>
+                ) : 'sem teto'}
+              </span>
+            </div>
           </div>
 
           <div
